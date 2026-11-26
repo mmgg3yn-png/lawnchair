@@ -8,7 +8,6 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -28,6 +27,7 @@ class MiMaxIslandService : NotificationListenerService() {
     private var wm: WindowManager? = null
     private var island: LinearLayout? = null
     private var activeKey: String? = null
+    private val activeEvents = linkedMapOf<String, StatusBarNotification>()
     private var expanded = false
     private var style = IslandStyle.HIS
     private val dismiss = Runnable { removeIsland() }
@@ -35,15 +35,25 @@ class MiMaxIslandService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        activeNotifications?.lastOrNull()?.let { show(it) }
+        activeEvents.clear()
+        activeNotifications?.filter { it.packageName != packageName }?.forEach { activeEvents[it.key] = it }
+        activeEvents.values.lastOrNull()?.let { show(it) }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName != packageName) main.post { show(sbn) }
+        if (sbn.packageName != packageName) main.post {
+            activeEvents[sbn.key] = sbn
+            show(sbn)
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        if (sbn.key == activeKey) main.post { removeIsland() }
+        main.post {
+            activeEvents.remove(sbn.key)
+            if (sbn.key == activeKey) {
+                activeEvents.values.lastOrNull()?.let { show(it) } ?: removeIsland()
+            }
+        }
     }
 
     private fun show(sbn: StatusBarNotification) {
@@ -62,8 +72,7 @@ class MiMaxIslandService : NotificationListenerService() {
             island = makeView(title, message)
             val params = WindowManager.LayoutParams(
                 dp(220), dp(48),
-                if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
@@ -85,6 +94,14 @@ class MiMaxIslandService : NotificationListenerService() {
             sbn.notification.category != "navigation") main.postDelayed(dismiss, 6500L)
     }
 
+    private fun cycleEvent(direction: Int) {
+        val items = activeEvents.values.toList()
+        if (items.size < 2) return
+        val index = items.indexOfFirst { it.key == activeKey }.let { if (it < 0) 0 else it }
+        val next = (index + direction + items.size) % items.size
+        show(items[next])
+    }
+
     private fun makeView(title: String, message: String): LinearLayout {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -93,6 +110,19 @@ class MiMaxIslandService : NotificationListenerService() {
             background = islandBackground()
             elevation = dp(12).toFloat()
             isClickable = true
+            var downX = 0f
+            setOnTouchListener { view, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> { downX = event.rawX; true }
+                    android.view.MotionEvent.ACTION_UP -> {
+                        val delta = event.rawX - downX
+                        if (kotlin.math.abs(delta) > dp(28)) cycleEvent(if (delta < 0) 1 else -1)
+                        else view.performClick()
+                        true
+                    }
+                    else -> true
+                }
+            }
             setOnClickListener {
                 expanded = !expanded
                 findViewWithTag<TextView>("message")?.visibility =
