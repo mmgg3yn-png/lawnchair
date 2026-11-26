@@ -1,0 +1,48 @@
+name: Mi_Max Launcher build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - mimax/full-feature-integration
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mimax-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Lawnchair and required submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build components
+        run: sdkmanager "platforms;android-37" "build-tools;37.0.0"
+
+      - name: Build Lawnchair Github debug APK
+        run: ./gradlew --no-daemon --stacktrace assembleLawnWithQuickstepGithubDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mi_Max-Launcher-debug
+          path: "**/build/outputs/apk/**/*.apk"
+          if-no-files-found: error
+          retention-days: 14
