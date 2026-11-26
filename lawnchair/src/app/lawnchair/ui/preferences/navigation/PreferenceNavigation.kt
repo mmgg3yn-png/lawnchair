@@ -42,6 +42,7 @@ import app.lawnchair.ui.preferences.destinations.GesturePreferences
 import app.lawnchair.ui.preferences.destinations.HiddenAppsPreferences
 import app.lawnchair.ui.preferences.destinations.HomeScreenGridPreferences
 import app.lawnchair.ui.preferences.destinations.HomeScreenPreferences
+import app.lawnchair.ui.preferences.destinations.MiMaxPreferences
 import app.lawnchair.ui.preferences.destinations.IconPickerPreference
 import app.lawnchair.ui.preferences.destinations.LauncherPopupPreference
 import app.lawnchair.ui.preferences.destinations.PickAppForGesture
@@ -161,6 +162,10 @@ fun PreferenceNavigation(
             deepLinks = getDeepLink(Smartspace),
         ) { SmartspacePreferences(fromWidget = false) }
         composable<SmartspaceWidget> { SmartspacePreferences(fromWidget = true) }
+
+        composable<MeIsland>(
+            deepLinks = getDeepLink(MeIsland),
+        ) { MiMaxPreferences() }
 
         composable<AppDrawer>(
             deepLinks = getDeepLink(AppDrawer),
