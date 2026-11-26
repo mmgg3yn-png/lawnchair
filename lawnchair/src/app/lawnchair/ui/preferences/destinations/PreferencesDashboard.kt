@@ -83,6 +83,7 @@ import app.lawnchair.ui.preferences.navigation.Gestures
 import app.lawnchair.ui.preferences.navigation.HomeScreen
 import app.lawnchair.ui.preferences.navigation.PreferenceRootRoute
 import app.lawnchair.ui.preferences.navigation.Quickstep
+import app.lawnchair.ui.preferences.navigation.MeIsland
 import app.lawnchair.ui.preferences.navigation.Search
 import app.lawnchair.ui.preferences.navigation.Smartspace
 import app.lawnchair.ui.util.addIf
@@ -145,6 +146,14 @@ fun PreferencesDashboard(
                 iconResource = R.drawable.ic_home_screen,
                 onNavigate = { onNavigate(HomeScreen) },
                 isSelected = currentRoute is HomeScreen,
+            )
+
+            PreferenceCategory(
+                label = "Me Island",
+                description = "HyperOS / iPhone / ColorOS activity island",
+                iconResource = R.drawable.ic_smartspace,
+                onNavigate = { onNavigate(MeIsland) },
+                isSelected = currentRoute is MeIsland,
             )
 
             val isSmartspaceEnabled = prefs2.enableSmartspace.firstCached()
