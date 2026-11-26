@@ -36,10 +36,10 @@ jobs:
             find "$SDK_ROOT" -maxdepth 4 -type f -name sdkmanager -print || true
             exit 1
           fi
-          echo "$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
           echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-          yes | "$SDKMANAGER" --licenses
+          yes | "$SDKMANAGER" --licenses || true
           "$SDKMANAGER" "platforms;android-37" "build-tools;37.0.0"
 
       - name: Build Lawnchair Github debug APK
