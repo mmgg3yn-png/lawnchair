@@ -81,7 +81,7 @@ fun FolderPreferences(
                 label = stringResource(id = R.string.max_folder_columns),
                 adapter = prefs2.folderColumns.getAdapter(),
                 step = 1,
-                valueRange = 2..5,
+                valueRange = 1..6,
             )
             SliderPreference(
                 label = stringResource(id = R.string.max_folder_rows),
