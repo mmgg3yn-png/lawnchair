@@ -227,5 +227,5 @@ data class RestoreNovaBackup(val base64Uri: String) : PreferenceRoute
 
 @kotlinx.serialization.Serializable
 data object MeIsland : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$" + "{URI}/me-island"
+    override val deepLink = "$URI/me-island"
 }
