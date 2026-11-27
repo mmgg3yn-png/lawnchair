@@ -10,11 +10,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Persistent model for Mi_Max stacked folders.
+ * Persistent relationship model for Mi_Max stacked folders.
  *
- * A stack is a folder that contains references to child folders. The actual
- * Launcher folder/database remains the source of truth for shortcuts; this
- * store only records the stack relationship and presentation order.
+ * Launcher remains the source of truth for the actual FolderInfo records.
+ * This store only persists ordering, selection, and the stack title.
  */
 class MiMaxFolderStackStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(
@@ -29,7 +28,9 @@ class MiMaxFolderStackStore(context: Context) {
         val selectedIndex: Int
     ) {
         fun selectedFolderId(): Long? =
-            childFolderIds.getOrNull(selectedIndex.coerceIn(0, (childFolderIds.size - 1).coerceAtLeast(0)))
+            childFolderIds.getOrNull(
+                selectedIndex.coerceIn(0, (childFolderIds.size - 1).coerceAtLeast(0))
+            )
     }
 
     @Synchronized
@@ -37,21 +38,31 @@ class MiMaxFolderStackStore(context: Context) {
         val raw = prefs.getString(KEY_STACKS, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(raw)
+            val claimedFolderIds = mutableSetOf<Long>()
             buildList {
                 for (i in 0 until array.length()) {
                     val item = array.optJSONObject(i) ?: continue
+                    val stackId = item.optLong("id", INVALID_ID)
+                    if (stackId <= 0L || any { it.id == stackId }) continue
                     val children = item.optJSONArray("children") ?: JSONArray()
                     val ids = buildList {
                         for (j in 0 until children.length()) {
-                            val id = children.optLong(j, INVALID_ID)
-                            if (id != INVALID_ID && id !in this) add(id)
+                            val folderId = children.optLong(j, INVALID_ID)
+                            if (folderId != INVALID_ID &&
+                                folderId !in this &&
+                                claimedFolderIds.add(folderId)
+                            ) {
+                                add(folderId)
+                            }
                         }
                     }
-                    if (ids.isNotEmpty()) {
+                    // A stack with fewer than two valid folders is not a stack.
+                    if (ids.size >= 2) {
+                        val rawTitle = item.optString("title", "Stack").trim()
                         add(
                             Stack(
-                                id = item.optLong("id", INVALID_ID),
-                                title = item.optString("title", "Stack"),
+                                id = stackId,
+                                title = rawTitle.ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH),
                                 childFolderIds = ids,
                                 selectedIndex = item.optInt("selected", 0)
                                     .coerceIn(0, ids.lastIndex)
@@ -65,42 +76,85 @@ class MiMaxFolderStackStore(context: Context) {
 
     @Synchronized
     fun create(title: String, childFolderIds: List<Long>): Stack? {
-        val ids = childFolderIds.filter { it != INVALID_ID }.distinct()
+        val ids = childFolderIds
+            .filter { it != INVALID_ID }
+            .distinct()
         if (ids.size < 2) return null
-        val stack = Stack(
-            id = nextId(),
-            title = title.trim().ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH),
-            childFolderIds = ids,
-            selectedIndex = 0
-        )
-        save(getAll() + stack)
-        return stack
-    }
 
-    @Synchronized
-    fun addFolder(stackId: Long, folderId: Long): Boolean {
-        if (folderId == INVALID_ID) return false
-        val stacks = getAll().toMutableList()
-        val index = stacks.indexOfFirst { it.id == stackId }
-        if (index < 0) return false
-        val stack = stacks[index]
-        if (folderId in stack.childFolderIds) return false
-        stacks[index] = stack.copy(childFolderIds = stack.childFolderIds + folderId)
-        save(stacks)
-        return true
+        val stacks = getAll()
+        val matching = stacks.filter { stack ->
+            stack.childFolderIds.any { it in ids }
+        }
+        val orderedIds = mutableListOf<Long>()
+        matching.forEach { stack ->
+            stack.childFolderIds.forEach { id ->
+                if (id !in orderedIds) orderedIds.add(id)
+            }
+        }
+        ids.forEach { id -> if (id !in orderedIds) orderedIds.add(id) }
+
+        val retained = matching.firstOrNull()
+        val selectedId = retained?.selectedFolderId()
+        val created = if (retained == null) {
+            Stack(
+                id = nextId(),
+                title = normalizeTitle(title),
+                childFolderIds = orderedIds,
+                selectedIndex = 0
+            )
+        } else {
+            retained.copy(
+                title = if (title.isBlank()) retained.title else normalizeTitle(title),
+                childFolderIds = orderedIds,
+                selectedIndex = orderedIds.indexOf(selectedId).coerceAtLeast(0)
+            )
+        }
+        val matchingIds = matching.map { it.id }.toSet()
+        save(stacks.filterNot { it.id in matchingIds } + created)
+        return created
     }
 
     /**
-     * Adds two folders to one stack, merging any stacks that already contain
-     * either folder. A folder can belong to only one stack.
+     * Adds a folder to a stack. If that folder already belongs to another
+     * stack, the two stacks are merged to preserve one-stack-per-folder.
      */
     @Synchronized
+    fun addFolder(stackId: Long, folderId: Long): Boolean {
+        if (folderId == INVALID_ID) return false
+        val stacks = getAll()
+        val target = stacks.firstOrNull { it.id == stackId } ?: return false
+        if (folderId in target.childFolderIds) return false
+
+        val matching = stacks.filter {
+            it.id == stackId || folderId in it.childFolderIds
+        }
+        val orderedIds = mutableListOf<Long>()
+        matching.forEach { stack ->
+            stack.childFolderIds.forEach { id ->
+                if (id !in orderedIds) orderedIds.add(id)
+            }
+        }
+        if (folderId !in orderedIds) orderedIds.add(folderId)
+        if (orderedIds.size < 2) return false
+
+        val selectedId = target.selectedFolderId()
+        val updated = target.copy(
+            childFolderIds = orderedIds,
+            selectedIndex = orderedIds.indexOf(selectedId).coerceAtLeast(0)
+        )
+        val matchingIds = matching.map { it.id }.toSet()
+        save(stacks.filterNot { it.id in matchingIds } + updated)
+        return true
+    }
+
+    /** Merges the stacks that contain either folder, then adds both IDs. */
+    @Synchronized
     fun mergeFolders(title: String, firstFolderId: Long, secondFolderId: Long): Stack? {
-        if (firstFolderId == INVALID_ID || secondFolderId == INVALID_ID
-            || firstFolderId == secondFolderId
+        if (firstFolderId == INVALID_ID || secondFolderId == INVALID_ID ||
+            firstFolderId == secondFolderId
         ) return null
 
-        val stacks = getAll().toMutableList()
+        val stacks = getAll()
         val matching = stacks.filter { stack ->
             firstFolderId in stack.childFolderIds || secondFolderId in stack.childFolderIds
         }
@@ -112,47 +166,40 @@ class MiMaxFolderStackStore(context: Context) {
         }
         if (firstFolderId !in orderedIds) orderedIds.add(firstFolderId)
         if (secondFolderId !in orderedIds) orderedIds.add(secondFolderId)
+        if (orderedIds.size < 2) return null
 
         val retained = matching.firstOrNull()
+        val selectedId = retained?.selectedFolderId()
         val merged = if (retained == null) {
             Stack(
                 id = nextId(),
-                title = title.trim().ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH),
+                title = normalizeTitle(title),
                 childFolderIds = orderedIds,
                 selectedIndex = 0
             )
         } else {
             retained.copy(
-                title = retained.title.ifBlank {
-                    title.trim().ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH)
-                },
+                title = if (retained.title.isBlank()) normalizeTitle(title) else retained.title,
                 childFolderIds = orderedIds,
-                selectedIndex = orderedIds.indexOf(
-                    retained.selectedFolderId() ?: orderedIds.first()
-                ).coerceAtLeast(0)
+                selectedIndex = orderedIds.indexOf(selectedId).coerceAtLeast(0)
             )
         }
 
         val matchingIds = matching.map { it.id }.toSet()
-        val result = stacks.filterNot { it.id in matchingIds }.toMutableList()
-        result.add(merged)
-        save(result)
+        save(stacks.filterNot { it.id in matchingIds } + merged)
         return merged
     }
 
-    /**
-     * Removes a deleted folder from every stack and drops stacks with fewer
-     * than two remaining folders.
-     */
+    /** Removes a folder deleted by Launcher and prunes invalid one-item stacks. */
     @Synchronized
     fun removeFolderFromAll(folderId: Long) {
         if (folderId == INVALID_ID) return
         val updated = getAll().mapNotNull { stack ->
+            val selectedId = stack.selectedFolderId()
             val remaining = stack.childFolderIds.filterNot { it == folderId }
             if (remaining.size < 2) {
                 null
             } else {
-                val selectedId = stack.selectedFolderId()
                 stack.copy(
                     childFolderIds = remaining,
                     selectedIndex = remaining.indexOf(selectedId).let {
@@ -170,15 +217,18 @@ class MiMaxFolderStackStore(context: Context) {
         val index = stacks.indexOfFirst { it.id == stackId }
         if (index < 0) return null
         val old = stacks[index]
+        val selectedId = old.selectedFolderId()
         val remaining = old.childFolderIds.filterNot { it == folderId }
-        if (remaining.isEmpty()) {
+        if (remaining.size < 2) {
             stacks.removeAt(index)
             save(stacks)
             return null
         }
         val updated = old.copy(
             childFolderIds = remaining,
-            selectedIndex = old.selectedIndex.coerceIn(0, remaining.lastIndex)
+            selectedIndex = remaining.indexOf(selectedId).let {
+                if (it < 0) old.selectedIndex.coerceIn(0, remaining.lastIndex) else it
+            }
         )
         stacks[index] = updated
         save(stacks)
@@ -191,7 +241,10 @@ class MiMaxFolderStackStore(context: Context) {
         val position = stacks.indexOfFirst { it.id == stackId }
         if (position < 0) return null
         val stack = stacks[position]
-        val updated = stack.copy(selectedIndex = index.coerceIn(0, stack.childFolderIds.lastIndex))
+        if (stack.childFolderIds.size < 2) return null
+        val updated = stack.copy(
+            selectedIndex = index.coerceIn(0, stack.childFolderIds.lastIndex)
+        )
         stacks[position] = updated
         save(stacks)
         return updated
@@ -202,9 +255,7 @@ class MiMaxFolderStackStore(context: Context) {
         val stacks = getAll().toMutableList()
         val index = stacks.indexOfFirst { it.id == stackId }
         if (index < 0) return false
-        stacks[index] = stacks[index].copy(
-            title = title.trim().ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH)
-        )
+        stacks[index] = stacks[index].copy(title = normalizeTitle(title))
         save(stacks)
         return true
     }
@@ -223,20 +274,37 @@ class MiMaxFolderStackStore(context: Context) {
         return current
     }
 
+    /** Sanitizes persisted data and enforces globally unique folder membership. */
     private fun save(stacks: List<Stack>) {
+        val claimedFolderIds = mutableSetOf<Long>()
+        val stackIds = mutableSetOf<Long>()
         val array = JSONArray()
         stacks.forEach { stack ->
+            if (stack.id <= 0L || !stackIds.add(stack.id)) return@forEach
+            val ids = stack.childFolderIds.filter { id ->
+                id != INVALID_ID && claimedFolderIds.add(id)
+            }
+            if (ids.size < 2) return@forEach
+            val selectedId = stack.selectedFolderId()
+            val selectedIndex = ids.indexOf(selectedId).let {
+                if (it < 0) 0 else it
+            }
             val item = JSONObject()
                 .put("id", stack.id)
-                .put("title", stack.title)
-                .put("selected", stack.selectedIndex)
+                .put("title", normalizeTitle(stack.title))
+                .put("selected", selectedIndex)
             val children = JSONArray()
-            stack.childFolderIds.forEach(children::put)
+            ids.forEach(children::put)
             item.put("children", children)
             array.put(item)
         }
-        prefs.edit().putString(KEY_STACKS, array.toString()).apply()
+        check(prefs.edit().putString(KEY_STACKS, array.toString()).commit()) {
+            "Unable to persist stacked folders"
+        }
     }
+
+    private fun normalizeTitle(value: String): String =
+        value.trim().ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH)
 
     companion object {
         private const val PREFS_NAME = "mimax_stacked_folders"
