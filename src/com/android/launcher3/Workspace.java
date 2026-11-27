@@ -276,6 +276,14 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public static final int REORDER_TIMEOUT = 650;
     protected final Alarm mReorderAlarm = new Alarm();
     private PreviewBackground mFolderCreateBg;
+    private PreviewBackground mWidgetStackCreateBg;
+    private static final AtomicLong sNextWidgetStackId = new AtomicLong();
+    private static long allocateWidgetStackId() {
+        return sNextWidgetStackId.updateAndGet(prev -> Math.max(prev + 1, System.currentTimeMillis()));
+    }
+    private boolean mCreateWidgetStackOnDrop = false;
+    private boolean mAddToExistingWidgetStackOnDrop = false;
+    private View mDragOverWidgetView = null;
     /** The underlying view that we are dragging something over. */
     private View mDragOverView = null;
     private FolderIcon mDragOverFolderIcon = null;
@@ -2340,6 +2348,316 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         return false;
     }
 
+    // ==================== Widget Stack Methods (Similar to Folder Creation) ====================
+    
+    /**
+     * Checks if dragging a widget onto another widget will create a widget stack
+     */
+    boolean willCreateWidgetStack(ItemInfo info, CellLayout target, int[] targetCell,
+            float distance, boolean considerTimeout) {
+        if (distance > target.getFolderCreationRadius(targetCell))
+            return false;
+        View dropOverView = target.getChildAt(targetCell[0], targetCell[1]);
+        return willCreateWidgetStack(info, dropOverView, considerTimeout);
+    }
+
+    boolean willCreateWidgetStack(ItemInfo info, View dropOverView, boolean considerTimeout) {
+        if (dropOverView != null) {
+            CellLayoutLayoutParams lp = (CellLayoutLayoutParams) dropOverView.getLayoutParams();
+            if (lp.useTmpCoords && (lp.getTmpCellX() != lp.getCellX()
+                    || lp.getTmpCellY() != lp.getCellY())) {
+                return false;
+            }
+        }
+
+        boolean hasntMoved = false;
+        if (mDragInfo != null) {
+            hasntMoved = dropOverView == mDragInfo.cell;
+        }
+
+        if (dropOverView == null || hasntMoved || (considerTimeout && !mCreateWidgetStackOnDrop)) {
+            return false;
+        }
+
+        // Whole-stack drag uses LauncherAppWidgetInfo on the tag; do not treat as new-stack merge
+        if (mDragInfo != null && mDragInfo.cell instanceof WidgetStackView) {
+            return false;
+        }
+
+        // Both must be standalone widgets (not stack members, not stack container views)
+        boolean aboveWidget = (dropOverView.getTag() instanceof LauncherAppWidgetInfo)
+                && !(dropOverView instanceof WidgetStackView);
+        if (aboveWidget) {
+            LauncherAppWidgetInfo dest = (LauncherAppWidgetInfo) dropOverView.getTag();
+            aboveWidget = dest.widgetStackId == null;
+        }
+        boolean willBecomeWidget = false;
+        if (info instanceof LauncherAppWidgetInfo) {
+            LauncherAppWidgetInfo src = (LauncherAppWidgetInfo) info;
+            willBecomeWidget = src.widgetStackId == null;
+        }
+
+        return (aboveWidget && willBecomeWidget);
+    }
+
+    /**
+     * Checks if dragging a widget onto an existing widget stack will add to the stack
+     */
+    boolean willAddToExistingWidgetStack(ItemInfo dragInfo, CellLayout target, int[] targetCell,
+            float distance) {
+        if (distance > target.getFolderCreationRadius(targetCell))
+            return false;
+        View dropOverView = target.getChildAt(targetCell[0], targetCell[1]);
+        return willAddToExistingWidgetStack(dragInfo, dropOverView);
+    }
+
+    boolean willAddToExistingWidgetStack(ItemInfo dragInfo, View dropOverView) {
+        if (dropOverView != null) {
+            CellLayoutLayoutParams lp = (CellLayoutLayoutParams) dropOverView.getLayoutParams();
+            if (lp.useTmpCoords && (lp.getTmpCellX() != lp.getCellX()
+                    || lp.getTmpCellY() != lp.getCellY())) {
+                return false;
+            }
+        }
+
+        if (mDragInfo != null && mDragInfo.cell instanceof WidgetStackView) {
+            return false;
+        }
+
+        if (dropOverView instanceof WidgetStackView && dragInfo instanceof LauncherAppWidgetInfo) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Creates a widget stack when a widget is dragged onto another widget
+     */
+    boolean createWidgetStackIfNecessary(View newView, int container, CellLayout target,
+            int[] targetCell, float distance, boolean external, DragObject d) {
+        if (distance > target.getFolderCreationRadius(targetCell))
+            return false;
+        View v = target.getChildAt(targetCell[0], targetCell[1]);
+
+        boolean hasntMoved = false;
+        if (mDragInfo != null) {
+            CellLayout cellParent = getParentCellLayoutForView(mDragInfo.cell);
+            hasntMoved = (mDragInfo.cellX == targetCell[0] &&
+                    mDragInfo.cellY == targetCell[1]) && (cellParent == target);
+        }
+
+        if (v == null || hasntMoved || !mCreateWidgetStackOnDrop)
+            return false;
+        mCreateWidgetStackOnDrop = false;
+        final int screenId = getCellLayoutId(target);
+
+        if (mDragInfo != null && mDragInfo.cell instanceof WidgetStackView) {
+            return false;
+        }
+        if (newView instanceof WidgetStackView) {
+            return false;
+        }
+
+        boolean aboveWidget = (v.getTag() instanceof LauncherAppWidgetInfo)
+                && !(v instanceof WidgetStackView);
+        if (aboveWidget) {
+            LauncherAppWidgetInfo dest = (LauncherAppWidgetInfo) v.getTag();
+            aboveWidget = dest.widgetStackId == null;
+        }
+        boolean willBecomeWidget = false;
+        if (newView.getTag() instanceof LauncherAppWidgetInfo) {
+            LauncherAppWidgetInfo src = (LauncherAppWidgetInfo) newView.getTag();
+            willBecomeWidget = src.widgetStackId == null;
+        }
+
+        if (aboveWidget && willBecomeWidget) {
+            LauncherAppWidgetInfo sourceInfo = (LauncherAppWidgetInfo) newView.getTag();
+            LauncherAppWidgetInfo destInfo = (LauncherAppWidgetInfo) v.getTag();
+            
+            // Create a new widget stack. The first widget in widgetIds creates the WidgetStackView
+            // (see ItemInflater).
+            long stackId = allocateWidgetStackId();
+            List<Integer> widgetIds = new ArrayList<>();
+            widgetIds.add(destInfo.appWidgetId);
+            widgetIds.add(sourceInfo.appWidgetId);
+            
+            // Ensure valid container (must be CONTAINER_DESKTOP or CONTAINER_HOTSEAT)
+            int validContainer = (container == LauncherSettings.Favorites.CONTAINER_DESKTOP ||
+                                 container == LauncherSettings.Favorites.CONTAINER_HOTSEAT) 
+                                 ? container 
+                                 : LauncherSettings.Favorites.CONTAINER_DESKTOP;
+            
+            WidgetStackInfo stackInfo = new WidgetStackInfo(
+                stackId,
+                widgetIds,
+                0, // currentIndex
+                false, // autoRotate
+                validContainer, // container - ensure it's valid!
+                screenId, // screenId
+                targetCell[0], // cellX
+                targetCell[1], // cellY
+                destInfo.spanX, // spanX
+                destInfo.spanY // spanY
+            );
+            
+            // Update widget info objects to reference the stack and ensure valid container.
+            // Align both widgets to the stack position/span so scaling works correctly
+            // even when the source widget has a different native size.
+            destInfo.widgetStackId = stackId;
+            destInfo.container = validContainer;
+            destInfo.sourceContainer = validContainer;
+            sourceInfo.widgetStackId = stackId;
+            sourceInfo.container = validContainer;
+            sourceInfo.sourceContainer = validContainer;
+            sourceInfo.cellX = targetCell[0];
+            sourceInfo.cellY = targetCell[1];
+            sourceInfo.screenId = screenId;
+            sourceInfo.spanX = destInfo.spanX;
+            sourceInfo.spanY = destInfo.spanY;
+            
+            // Ensure both widgets are in database with correct container values
+            // This is critical for persistence
+            // destInfo is always an existing widget (on workspace), so update it
+            mLauncher.getModelWriter().updateItemInDatabase(destInfo);
+            
+            // sourceInfo might be new (external) or existing (being moved)
+            if (external && sourceInfo.id <= 0) {
+                // Source widget is new (from widget picker), add it to database
+                mLauncher.getModelWriter().addItemToDatabase(
+                    sourceInfo,
+                    validContainer,
+                    screenId,
+                    targetCell[0],
+                    targetCell[1]
+                );
+            } else {
+                // Source widget is existing (being moved), update it
+                mLauncher.getModelWriter().updateItemInDatabase(sourceInfo);
+            }
+            
+            // Remove old widget views first to free the cells
+            if (!external) {
+                getParentCellLayoutForView(mDragInfo.cell).removeView(mDragInfo.cell);
+            }
+            target.removeView(v);
+
+            // Create WidgetStackView and add to workspace at the now-free cell
+            WidgetStackView stackView = new WidgetStackView(getContext());
+            stackView.setTag(destInfo);
+            addInScreen(stackView, container, screenId, targetCell[0], targetCell[1],
+                    destInfo.spanX, destInfo.spanY);
+
+            // Initialize with the first widget only, then add the second.
+            // This avoids recreating both host views at once.
+            WidgetStackInfo firstOnlyStack = new WidgetStackInfo(
+                    stackId,
+                    java.util.Collections.singletonList(destInfo.appWidgetId),
+                    0, false, validContainer, screenId,
+                    targetCell[0], targetCell[1], destInfo.spanX, destInfo.spanY);
+            stackView.setStackInfo(firstOnlyStack,
+                    java.util.Collections.singletonList(destInfo));
+            stackView.addWidget(sourceInfo);
+
+            stackView.setStackChangeListener(new WidgetStackChangeListener() {
+                @Override
+                public void onStackShouldCollapse(WidgetStackView stackView, int remainingWidgetId) {
+                    collapseStackToSingleWidget(stackView, remainingWidgetId);
+                }
+                @Override
+                public void onStackChanged(WidgetStackView stackView) {
+                    requestLayout();
+                }
+            });
+
+            requestLayout();
+            
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Adds a widget to an existing widget stack
+     */
+    boolean addToExistingWidgetStackIfNecessary(View newView, CellLayout target, int[] targetCell,
+            float distance, DragObject d, boolean external) {
+        if (distance > target.getFolderCreationRadius(targetCell))
+            return false;
+
+        View dropOverView = target.getChildAt(targetCell[0], targetCell[1]);
+        if (!mAddToExistingWidgetStackOnDrop)
+            return false;
+        mAddToExistingWidgetStackOnDrop = false;
+
+        if (dropOverView instanceof WidgetStackView && 
+                newView.getTag() instanceof LauncherAppWidgetInfo) {
+            WidgetStackView stackView = (WidgetStackView) dropOverView;
+            LauncherAppWidgetInfo widgetInfo = (LauncherAppWidgetInfo) newView.getTag();
+            
+            // Get stack info
+            WidgetStackInfo stackInfo = stackView.getStackInfo();
+            if (stackInfo != null) {
+                // Ensure valid container
+                int validContainer = (stackInfo.getContainer() == LauncherSettings.Favorites.CONTAINER_DESKTOP ||
+                                     stackInfo.getContainer() == LauncherSettings.Favorites.CONTAINER_HOTSEAT)
+                                     ? stackInfo.getContainer()
+                                     : LauncherSettings.Favorites.CONTAINER_DESKTOP;
+                
+                // Align the widget's position and span to match the stack so that
+                // scaling and cell-layout queries work correctly for mixed-size widgets.
+                widgetInfo.widgetStackId = stackInfo.getStackId();
+                widgetInfo.container = validContainer;
+                widgetInfo.sourceContainer = validContainer;
+                widgetInfo.cellX = stackInfo.getCellX();
+                widgetInfo.cellY = stackInfo.getCellY();
+                widgetInfo.screenId = stackInfo.getScreenId();
+                widgetInfo.spanX = stackInfo.getSpanX();
+                widgetInfo.spanY = stackInfo.getSpanY();
+                
+                // Persist widget to database first
+                if (widgetInfo.id > 0) {
+                    mLauncher.getModelWriter().updateItemInDatabase(widgetInfo);
+                } else {
+                    final int screenId = getCellLayoutId(target);
+                    mLauncher.getModelWriter().addItemToDatabase(
+                        widgetInfo,
+                        validContainer,
+                        screenId,
+                        targetCell[0],
+                        targetCell[1]
+                    );
+                }
+                
+                // Replace any prior listener (e.g. bind path) so collapse/layout stay wired after drag-add.
+                stackView.setStackChangeListener(new WidgetStackChangeListener() {
+                    @Override
+                    public void onStackShouldCollapse(WidgetStackView stackView, int remainingWidgetId) {
+                        collapseStackToSingleWidget(stackView, remainingWidgetId);
+                    }
+
+                    @Override
+                    public void onStackChanged(WidgetStackView stackView) {
+                        requestLayout();
+                    }
+                });
+                
+                // Add widget directly with its info, bypassing BgDataModel lookup.
+                // addWidget also updates the stack info and persists via ModelWriter.
+                stackView.addWidget(widgetInfo);
+                
+                if (!external) {
+                    getParentCellLayoutForView(mDragInfo.cell).removeView(mDragInfo.cell);
+                }
+                
+                requestLayout();
+                
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     @Override
     public void prepareAccessibilityDrop() {}
 
@@ -4010,6 +4328,107 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         System.arraycopy(hotseatPages, 0, layouts, screenCount, hotseatPages.length);
         return layouts;
     }
+
+    /**
+     * Collapses a WidgetStackView to a single widget when the stack has only one widget remaining.
+     * This replaces the WidgetStackView with a regular widget view and updates the database.
+     *
+     * @param stackView The WidgetStackView to collapse
+     * @param remainingWidgetId The widget ID that should remain as a single widget
+     */
+    void collapseStackToSingleWidget(WidgetStackView stackView, int remainingWidgetId) {
+        if (stackView == null) return;
+
+        // Get the stack info and widget info
+        WidgetStackInfo stackInfo = stackView.getStackInfo();
+        if (stackInfo == null || stackInfo.getWidgetIds().size() != 1) {
+            // Stack doesn't have exactly one widget - shouldn't collapse
+            return;
+        }
+
+        // Find the widget info in the model
+        final BgDataModel bgDataModel = mLauncher.getModel().getBgDataModel();
+        LauncherAppWidgetInfo widgetInfo = null;
+        synchronized (bgDataModel) {
+            for (ItemInfo itemInfo : bgDataModel.itemsIdMap) {
+                if (itemInfo instanceof LauncherAppWidgetInfo) {
+                    LauncherAppWidgetInfo wInfo = (LauncherAppWidgetInfo) itemInfo;
+                    if (wInfo.appWidgetId == remainingWidgetId) {
+                        widgetInfo = wInfo;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (widgetInfo == null) {
+            widgetInfo = stackView.getWidgetInfoForMember(remainingWidgetId);
+        }
+        if (widgetInfo == null) {
+            widgetInfo = WidgetStackManager.loadLauncherAppWidgetInfoFromFavorites(
+                    mLauncher,
+                    mLauncher.getModel().getModelDbController().getDb(),
+                    remainingWidgetId);
+        }
+        if (widgetInfo == null) {
+            android.util.Log.w("Workspace", "Cannot collapse stack: widget " + remainingWidgetId
+                    + " not in model, stack cache, or DB");
+            return;
+        }
+
+        // Get the parent CellLayout
+        CellLayout parentLayout = getParentCellLayoutForView(stackView);
+        if (parentLayout == null) {
+            android.util.Log.w("Workspace", "Cannot collapse stack: parent CellLayout not found");
+            return;
+        }
+
+        // Get position from stack info
+        int cellX = stackInfo.getCellX();
+        int cellY = stackInfo.getCellY();
+        int spanX = stackInfo.getSpanX();
+        int spanY = stackInfo.getSpanY();
+        int screenId = stackInfo.getScreenId();
+        int container = stackInfo.getContainer();
+
+        // Remove stack reference from widget info
+        widgetInfo.widgetStackId = null;
+        widgetInfo.container = container;
+        widgetInfo.screenId = screenId;
+        widgetInfo.cellX = cellX;
+        widgetInfo.cellY = cellY;
+        widgetInfo.spanX = spanX;
+        widgetInfo.spanY = spanY;
+
+        // Update widget in database (remove stack reference)
+        mLauncher.getModelWriter().updateItemInDatabase(widgetInfo);
+
+        // Clear stack metadata for this stack id on the model thread (same executor as ModelWriter)
+        final long stackIdToClear = stackInfo.getStackId();
+        Executors.MODEL_EXECUTOR.execute(() -> {
+            SQLiteDatabase db = mLauncher.getModel().getModelDbController().getDb();
+            WidgetStackManager.INSTANCE.deleteStack(db, stackIdToClear);
+        });
+
+        // Create a new single widget view
+        View newWidgetView = mLauncher.getItemInflater().inflateItem(widgetInfo, mLauncher.getModelWriter());
+        if (newWidgetView == null) {
+            android.util.Log.w("Workspace", "Cannot collapse stack: failed to inflate widget view");
+            return;
+        }
+
+        // Remove the stack view from workspace
+        parentLayout.removeView(stackView);
+
+        // Add the single widget view at the same position
+        addInScreen(newWidgetView, container, screenId, cellX, cellY, spanX, spanY);
+
+        // Trigger UI refresh
+        requestLayout();
+
+        android.util.Log.d("Workspace", "Collapsed stack " + stackInfo.getStackId() + " to single widget " + remainingWidgetId);
+    }
+
 
     public LauncherAppWidgetHostView getWidgetForAppWidgetId(final int appWidgetId) {
         return (LauncherAppWidgetHostView) mapOverItems((info, v) ->
