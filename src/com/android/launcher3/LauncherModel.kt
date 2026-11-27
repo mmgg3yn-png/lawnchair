@@ -125,6 +125,10 @@ constructor(
         lifecycle.addCloseable(dumpManager.register(this))
     }
 
+    /** Read-only access to launcher workspace data for UI features. Callers must synchronize on the model. */
+    val bgDataModel: BgDataModel
+        get() = mBgDataModel
+
     fun newModelCallbacks() = ModelLauncherCallbacks(this::enqueueModelUpdateTask)
 
     fun getWriter(
