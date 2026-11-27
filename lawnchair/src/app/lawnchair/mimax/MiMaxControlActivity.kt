@@ -212,6 +212,16 @@ class MiMaxControlActivity : Activity() {
             prefs.edit().putInt("island_animation_duration", next).apply()
             Toast.makeText(this, "مدة الحركة: $next ms", Toast.LENGTH_SHORT).show()
         }
+        val animationLabels = listOf("OriginOS / ارتداد ناعم", "تكبير وتصغير", "تلاشي", "انزلاق")
+        val currentAnimationStyle = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            .getInt("island_animation_style", 0).coerceIn(0, 3)
+        addButton("نمط الحركة: ${animationLabels[currentAnimationStyle]}") {
+            val prefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            val next = (prefs.getInt("island_animation_style", 0) + 1) % animationLabels.size
+            prefs.edit().putInt("island_animation_style", next).apply()
+            sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
+            render()
+        }
         addButton("استيراد ثيم MT1") {
             startActivityForResult(
                 Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -567,6 +577,7 @@ class MiMaxControlActivity : Activity() {
             .putInt("mt1_width", source.getInt("mt1_width", 320))
             .putBoolean("island_reduce_motion", source.getBoolean("island_reduce_motion", false))
             .putInt("island_animation_duration", source.getInt("island_animation_duration", 220))
+            .putInt("island_animation_style", source.getInt("island_animation_style", 0).coerceIn(0, 3))
             .putInt("dock_pages", launcherPrefs.dockPages.get())
             .putInt("dock_rows", launcherPrefs.hotseatRows.get())
             .putInt("folder_rows", launcherPrefs.folderRows.get())
@@ -598,6 +609,7 @@ class MiMaxControlActivity : Activity() {
             .putInt("mt1_width", source.getInt("mt1_width", 320))
             .putBoolean("island_reduce_motion", source.getBoolean("island_reduce_motion", false))
             .putInt("island_animation_duration", source.getInt("island_animation_duration", 220))
+            .putInt("island_animation_style", source.getInt("island_animation_style", 0).coerceIn(0, 3))
             .putBoolean("focus_mode_enabled", source.getBoolean("focus_mode_enabled", false))
             .apply()
         val launcherPrefs = PreferenceManager.getInstance(this)
