@@ -127,7 +127,7 @@ fun showWidgetStackDialog(
                     }
 
                     val finalStackInfo = stackInfo.copy(container = validContainer)
-                    val bgDataModel = launcher.model.getBgDataModel()
+                    val bgDataModel = launcher.model.bgDataModel
 
                     // Collect LauncherAppWidgetInfo objects for all widgets in the stack
                     val widgetsToUpdate = synchronized(bgDataModel) {
@@ -243,7 +243,7 @@ fun showWidgetStackDialog(
     var liveStack: WidgetStackInfo? = null
     launcher.workspace?.mapOverItems(
         object : com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator {
-            override fun evaluate(info: ItemInfo, v: android.view.View): Boolean {
+            override fun evaluate(info: ItemInfo?, v: android.view.View): Boolean {
                 if (v is WidgetStackView && info is LauncherAppWidgetInfo &&
                     info.widgetStackId == stackId
                 ) {
@@ -319,7 +319,7 @@ fun showWidgetStackDialog(
                 launcher.workspace?.let { workspace ->
                     workspace.mapOverItems(
                         object : com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator {
-                            override fun evaluate(info: ItemInfo, v: android.view.View): Boolean {
+                            override fun evaluate(info: ItemInfo?, v: android.view.View): Boolean {
                                 if (v is WidgetStackView && info is LauncherAppWidgetInfo &&
                                     info.widgetStackId == stackId
                                 ) {
@@ -336,7 +336,7 @@ fun showWidgetStackDialog(
                 result = strategy3Fallback
             }
 
-            val bgDataModel = launcher.model.getBgDataModel()
+            val bgDataModel = launcher.model.bgDataModel
             val liveIds = result?.let { info ->
                 synchronized(bgDataModel) {
                     info.widgetIds.filter { wid ->
