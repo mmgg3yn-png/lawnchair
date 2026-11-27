@@ -83,10 +83,10 @@ class MiMaxIslandService : NotificationListenerService() {
             }
             if (intent.action == MiMaxIslandPreferences.ACTION_THEME_UPDATED) {
                 style = MiMaxIslandPreferences.style(this@MiMaxIslandService)
-                island?.let { view ->
-                    view.background = islandBackground()
-                    updateIslandSize(view)
-                }
+                val active = activeEvents[activeKey]
+                removeIsland()
+                if (active != null) show(active)
+                else if (timerStatusText.isNotBlank()) showStandaloneTimer()
                 floatingPanel?.background = islandBackground()
                 return
             }
@@ -372,7 +372,8 @@ class MiMaxIslandService : NotificationListenerService() {
         if (style == IslandStyle.COLOROS) {
             val accent = View(this).apply {
                 background = GradientDrawable().apply {
-                    setColor(0xFF8C9BFF.toInt())
+                    setColor(getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                        .getInt("mt1_accent_color", 0xFF8C9BFF.toInt()))
                     cornerRadius = dp(4).toFloat()
                 }
             }
