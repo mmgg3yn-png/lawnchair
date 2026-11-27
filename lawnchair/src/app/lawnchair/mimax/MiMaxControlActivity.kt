@@ -86,6 +86,7 @@ class MiMaxControlActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == requestPhoneState) {
             if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_CALL_MONITOR_PERMISSION_UPDATED))
                 Toast.makeText(this, "تم تفعيل رصد حالة المكالمات حتى دون إشعار", Toast.LENGTH_LONG).show()
             } else {
                 Toast.makeText(this, "لم يتم منح إذن حالة الهاتف؛ ستبقى المكالمات التي ترسل إشعارات فقط مدعومة", Toast.LENGTH_LONG).show()
