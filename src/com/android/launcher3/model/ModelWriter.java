@@ -51,6 +51,8 @@ import com.android.launcher3.util.IntArray;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.LooperExecutor;
 import com.android.launcher3.widget.LauncherWidgetHolder;
+import app.lawnchair.mimax.MiMaxFolderStackStore;
+import com.android.launcher3.model.data.FolderInfo;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -437,6 +439,15 @@ public class ModelWriter {
             for (ItemInfo item : items) {
                 mModel.getModelDbController().delete(itemIdMatch(item.id), null);
             }
+            // Prune Mi_Max stack references only after Launcher has committed the
+            // folder deletion. Normal content changes (including one-item folders)
+            // must not be treated as folder deletion.
+            MiMaxFolderStackStore stackStore = new MiMaxFolderStackStore(mContext);
+            for (ItemInfo item : items) {
+                if (item instanceof FolderInfo) {
+                    stackStore.removeFolderFromAll(item.id);
+                }
+            }
             mBgDataModel.removeItem(mContext, items, mOwner);
             verifier.verifyModel();
         }));
@@ -458,6 +469,9 @@ public class ModelWriter {
 
             List<ItemInfo> itemsToDelete = new ArrayList<>(info.getContents());
             itemsToDelete.add(info);
+            if (info instanceof FolderInfo) {
+                new MiMaxFolderStackStore(mContext).removeFolderFromAll(info.id);
+            }
             mBgDataModel.removeItem(mContext, itemsToDelete, mOwner);
             verifier.verifyModel();
         }));
