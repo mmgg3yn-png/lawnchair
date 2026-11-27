@@ -56,6 +56,7 @@ import com.android.launcher3.views.AbstractSlideInView;
 import com.android.launcher3.widget.picker.model.WidgetPickerDataProvider.WidgetPickerDataChangeListener;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import app.lawnchair.theme.color.tokens.ColorTokens;
 
@@ -82,6 +83,7 @@ public abstract class BaseWidgetSheet extends AbstractSlideInView<BaseActivity>
 
     @Nullable private WidgetCell mWidgetCellWithAddButton = null;
     @Nullable private WidgetItem mLastSelectedWidgetItem = null;
+    @Nullable private Consumer<WidgetItem> mWidgetPickListener;
 
     public BaseWidgetSheet(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
@@ -121,6 +123,11 @@ public abstract class BaseWidgetSheet extends AbstractSlideInView<BaseActivity>
         mActivityContext.removeOnDeviceProfileChangeListener(this);
     }
 
+    /** Enables select-only mode for adding a widget to a stack. */
+    public void setWidgetPickListener(@Nullable Consumer<WidgetItem> listener) {
+        mWidgetPickListener = listener;
+    }
+
     @Override
     public void onDeviceProfileChanged(DeviceProfile dp) {
         int navBarScrimColor = Themes.getNavBarScrimColor(mActivityContext);
@@ -154,6 +161,17 @@ public abstract class BaseWidgetSheet extends AbstractSlideInView<BaseActivity>
         }  else if (v.getParent() instanceof WidgetCell parent) {
             wc = parent;
         } else {
+            return;
+        }
+
+        if (mWidgetPickListener != null) {
+            WidgetItem item = wc.getWidgetItem();
+            if (item != null && item.widgetInfo != null) {
+                Consumer<WidgetItem> listener = mWidgetPickListener;
+                mWidgetPickListener = null;
+                listener.accept(item);
+                close(true);
+            }
             return;
         }
 
@@ -282,6 +300,10 @@ public abstract class BaseWidgetSheet extends AbstractSlideInView<BaseActivity>
 
     @Override
     public boolean onLongClick(View v) {
+        if (mWidgetPickListener != null) {
+            v.cancelLongPress();
+            return true;
+        }
         TestLogging.recordEvent(TestProtocol.SEQUENCE_MAIN, "Widgets.onLongClick");
         v.cancelLongPress();
         if (!ItemLongClickListener.canStartDrag(Launcher.getLauncher(mActivityContext)))
