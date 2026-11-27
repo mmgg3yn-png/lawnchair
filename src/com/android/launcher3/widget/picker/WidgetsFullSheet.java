@@ -780,6 +780,13 @@ public class WidgetsFullSheet extends BaseWidgetSheet
         return sheet;
     }
 
+    /** Overrides the widget picker header title for stack member selection. */
+    public void setPickerTitle(@Nullable CharSequence title) {
+        if (mHeaderTitle != null && title != null) {
+            mHeaderTitle.setText(title);
+        }
+    }
+
     /**
      * Updates the widget picker's title and description in the header to the provided values (if
      * present).
