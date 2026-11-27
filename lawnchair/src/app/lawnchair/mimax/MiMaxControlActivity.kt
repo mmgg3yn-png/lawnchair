@@ -16,6 +16,8 @@ import android.provider.Settings
 import android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
+import android.text.InputType
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -68,6 +70,34 @@ class MiMaxControlActivity : Activity() {
         }
         addButton("منح إذن الوصول للإشعارات") {
             startActivity(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+        val timerMinutes = EditText(this).apply {
+            hint = "مدة المؤقت بالدقائق"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true)
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0xFF9A9AA3.toInt())
+        }
+        root.addView(timerMinutes, LinearLayout.LayoutParams(-1, dp(52)).apply {
+            topMargin = dp(16)
+        })
+        addButton("بدء المؤقت داخل Me Island") {
+            val minutes = timerMinutes.text.toString().toLongOrNull()
+            if (minutes == null || minutes !in 1..5999) {
+                Toast.makeText(this, "أدخل مدة بين دقيقة و5999 دقيقة", Toast.LENGTH_LONG).show()
+            } else {
+                getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
+                    .putLong("island_timer_end", System.currentTimeMillis() + minutes * 60_000L)
+                    .apply()
+                sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_TIMER_UPDATED))
+                Toast.makeText(this, "بدأ المؤقت", Toast.LENGTH_SHORT).show()
+            }
+        }
+        addButton("إيقاف المؤقت") {
+            getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
+                .remove("island_timer_end").apply()
+            sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_TIMER_UPDATED))
+            Toast.makeText(this, "تم إيقاف المؤقت", Toast.LENGTH_SHORT).show()
         }
         addButton("إرسال إشعار تجريبي للجزيرة") {
             if (isNotificationListenerEnabled()) {
