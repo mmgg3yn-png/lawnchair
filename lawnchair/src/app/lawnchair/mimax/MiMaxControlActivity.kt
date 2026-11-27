@@ -255,6 +255,7 @@ class MiMaxControlActivity : Activity() {
         })
         addButton("إدارة الإضافات المثبتة") { showExtensionManager() }
         addButton("فتح كتالوج القوالب المدمج") { showExtensionCatalog() }
+        addButton("فتح متجر الثيمات عبر الإنترنت") { showOnlineExtensionStore() }
         addButton("استيراد إضافة MXE") {
             startActivityForResult(
                 Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -950,6 +951,71 @@ class MiMaxControlActivity : Activity() {
             .setNeutralButton("الكتالوج") { _, _ -> showExtensionCatalog() }
             .setNegativeButton("إغلاق", null)
             .show()
+    }
+
+    private fun showOnlineExtensionStore() {
+        Toast.makeText(this, "جارٍ تحديث متجر الثيمات…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val result = runCatching { MiMaxExtensionStore.fetchCatalog() }
+            runOnUiThread {
+                result.onSuccess { catalog ->
+                    if (catalog.isEmpty()) {
+                        Toast.makeText(this, "المتجر لا يحتوي على ثيمات حالياً", Toast.LENGTH_LONG).show()
+                        return@onSuccess
+                    }
+                    val labels = catalog.map { definition ->
+                        val installed = MiMaxExtensionManager.getAll(this)
+                            .firstOrNull { it.definition.id == definition.id }
+                        val state = when {
+                            installed == null -> "تثبيت"
+                            definition.versionCode > installed.definition.versionCode -> "تحديث"
+                            else -> "مثبت"
+                        }
+                        "${definition.name} • v${definition.versionCode} • $state\n${definition.description}"
+                    }.toTypedArray()
+                    AlertDialog.Builder(this)
+                        .setTitle("متجر ثيمات Mi_Max")
+                        .setItems(labels) { _, index ->
+                            val definition = catalog[index]
+                            runCatching {
+                                val existing = MiMaxExtensionManager.getAll(this)
+                                    .firstOrNull { it.definition.id == definition.id }
+                                val extension = if (existing == null ||
+                                    definition.versionCode > existing.definition.versionCode
+                                ) {
+                                    MiMaxExtensionManager.install(this, definition)
+                                } else {
+                                    existing
+                                }
+                                Toast.makeText(
+                                    this,
+                                    if (existing == null) "تم تثبيت ${definition.name}"
+                                    else if (extension.definition.versionCode > existing.definition.versionCode)
+                                        "تم تحديث ${definition.name}"
+                                    else "${definition.name} مثبت بالفعل",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                showExtensionActions(definition.id)
+                            }.onFailure {
+                                Toast.makeText(
+                                    this,
+                                    "تعذر تثبيت الثيم: ${it.message ?: "خطأ غير معروف"}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        .setNegativeButton("إغلاق", null)
+                        .show()
+                }.onFailure {
+                    AlertDialog.Builder(this)
+                        .setTitle("تعذر الاتصال بمتجر الثيمات")
+                        .setMessage(it.message ?: "تحقق من اتصال الإنترنت ثم حاول مجدداً.")
+                        .setPositiveButton("إعادة المحاولة") { _, _ -> showOnlineExtensionStore() }
+                        .setNegativeButton("إغلاق", null)
+                        .show()
+                }
+            }
+        }.start()
     }
 
     private fun showExtensionCatalog() {
