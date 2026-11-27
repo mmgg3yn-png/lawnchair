@@ -4519,9 +4519,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
         Hotseat hotseat = mLauncher.getHotseat();
         if (hotseat != null) {
-            ViewGroup container = hotseat.getShortcutsAndWidgets();
-            for (int i = 0; i < container.getChildCount(); i++) {
-                View child = container.getChildAt(i);
+            ViewGroup hotseatContainer = hotseat.getShortcutsAndWidgets();
+            for (int i = 0; i < hotseatContainer.getChildCount(); i++) {
+                View child = hotseatContainer.getChildAt(i);
                 if (child instanceof WidgetStackView) {
                     WidgetStackInfo info = ((WidgetStackView) child).getStackInfo();
                     if (info != null && info.getWidgetIds().contains(appWidgetId)) return true;
