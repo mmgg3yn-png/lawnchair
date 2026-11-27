@@ -455,9 +455,16 @@ class MiMaxIslandService : NotificationListenerService() {
                 findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                     if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
                 updateIslandSize(this)
-                animate().scaleX(if (expanded && !reduceMotionEnabled()) 1.025f else 1f)
-                    .scaleY(if (expanded && !reduceMotionEnabled()) 1.025f else 1f)
-                    .setDuration(animationDuration(180L)).start()
+                val targetScale = if (expanded && !reduceMotionEnabled()) 1.025f else 1f
+                val transition = animate().scaleX(targetScale).scaleY(targetScale)
+                    .setDuration(animationDuration(180L))
+                when (animationStyle()) {
+                    0 -> transition.translationY(if (expanded) -dp(2).toFloat() else 0f)
+                    1 -> transition.translationY(0f)
+                    2 -> transition.translationY(0f)
+                    else -> transition.translationY(if (expanded) -dp(4).toFloat() else 0f)
+                }
+                transition.start()
             }
         }
 
@@ -611,17 +618,7 @@ class MiMaxIslandService : NotificationListenerService() {
         if (content !== root) {
             root.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
         }
-        if (reduceMotionEnabled()) {
-            root.alpha = 1f
-            root.scaleX = 1f
-            root.scaleY = 1f
-        } else {
-            root.alpha = 0f
-            root.scaleX = .82f
-            root.scaleY = .82f
-            root.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setDuration(animationDuration(220L)).start()
-        }
+        applyIslandEnterAnimation(root)
         return root
     }
 
@@ -750,6 +747,56 @@ class MiMaxIslandService : NotificationListenerService() {
         floatingPanel = null
     }
 
+    /** 0 = Origin-style springy reveal, 1 = zoom, 2 = fade, 3 = slide. */
+    private fun animationStyle(): Int =
+        getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            .getInt("island_animation_style", 0).coerceIn(0, 3)
+
+    private fun applyIslandEnterAnimation(view: View) {
+        if (reduceMotionEnabled()) {
+            view.alpha = 1f
+            view.scaleX = 1f
+            view.scaleY = 1f
+            view.translationY = 0f
+            return
+        }
+        val enter = view.animate()
+            .alpha(1f)
+            .setDuration(animationDuration(240L))
+            .setInterpolator(android.view.animation.OvershootInterpolator(0.65f))
+        when (animationStyle()) {
+            0 -> {
+                view.alpha = 0f
+                view.scaleX = .84f
+                view.scaleY = .90f
+                view.translationY = -dp(10).toFloat()
+                enter.scaleX(1f).scaleY(1f).translationY(0f)
+            }
+            1 -> {
+                view.alpha = 0f
+                view.scaleX = .72f
+                view.scaleY = .72f
+                view.translationY = 0f
+                enter.scaleX(1f).scaleY(1f).translationY(0f)
+            }
+            2 -> {
+                view.alpha = 0f
+                view.scaleX = 1f
+                view.scaleY = 1f
+                view.translationY = 0f
+                enter.scaleX(1f).scaleY(1f).translationY(0f)
+            }
+            else -> {
+                view.alpha = 0f
+                view.scaleX = 1f
+                view.scaleY = 1f
+                view.translationY = -dp(22).toFloat()
+                enter.scaleX(1f).scaleY(1f).translationY(0f)
+            }
+        }
+        enter.start()
+    }
+
     private fun reduceMotionEnabled(): Boolean =
         getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
             .getBoolean("island_reduce_motion", false)
@@ -797,9 +844,16 @@ class MiMaxIslandService : NotificationListenerService() {
             if (reduceMotionEnabled()) {
                 runCatching { wm?.removeView(view) }
             } else {
-                view.animate().alpha(0f).scaleX(.82f).scaleY(.82f)
-                    .setDuration(animationDuration(140L))
-                    .withEndAction { runCatching { wm?.removeView(view) } }.start()
+                val exit = view.animate().alpha(0f)
+                    .setDuration(animationDuration(160L))
+                    .withEndAction { runCatching { wm?.removeView(view) } }
+                when (animationStyle()) {
+                    0 -> exit.scaleX(.94f).scaleY(.94f).translationY(-dp(6).toFloat())
+                    1 -> exit.scaleX(.78f).scaleY(.78f).translationY(0f)
+                    2 -> exit.scaleX(1f).scaleY(1f).translationY(0f)
+                    else -> exit.scaleX(1f).scaleY(1f).translationY(-dp(18).toFloat())
+                }
+                exit.start()
             }
         }
         island = null
