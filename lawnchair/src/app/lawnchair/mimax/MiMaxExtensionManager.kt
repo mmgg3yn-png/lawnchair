@@ -297,9 +297,15 @@ object MiMaxExtensionManager {
         try {
             writeTheme(targetPrefs, extension.definition.theme)
             val applied = captureTheme(targetPrefs)
-            require(applied.optString("style") == extension.definition.theme.style.name) {
-                "تعذر التحقق من تطبيق الثيم"
-            }
+            val expectedTheme = extension.definition.theme
+            require(
+                applied.optString("name") == expectedTheme.name &&
+                    applied.optString("style") == expectedTheme.style.name &&
+                    applied.optLong("accent") == expectedTheme.accentColor.toLong() &&
+                    applied.optLong("background") == expectedTheme.backgroundColor.toLong() &&
+                    applied.optInt("radius") == expectedTheme.cornerRadiusDp &&
+                    applied.optInt("width") == expectedTheme.widthDp
+            ) { "تعذر التحقق من جميع إعدادات الثيم بعد التطبيق" }
             check(recovery.edit()
                 .putString(KEY_LAST_GOOD, applied.toString())
                 .remove(KEY_PENDING)
@@ -331,9 +337,12 @@ object MiMaxExtensionManager {
     fun recoverIfPending(context: Context): Boolean {
         val recovery = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE)
         if (!recovery.getBoolean(KEY_PENDING, false)) return false
-        val snapshot = recovery.getString(KEY_PENDING_SNAPSHOT, null)
+        val pendingSnapshot = recovery.getString(KEY_PENDING_SNAPSHOT, null)
+        val lastGoodSnapshot = recovery.getString(KEY_LAST_GOOD, null)
         val restored = runCatching {
-            require(!snapshot.isNullOrBlank()) { "نقطة الاستعادة غير موجودة" }
+            val snapshot = pendingSnapshot?.takeIf { it.isNotBlank() }
+                ?: lastGoodSnapshot?.takeIf { it.isNotBlank() }
+                ?: error("لا توجد نقطة استعادة صالحة")
             restoreTheme(context, JSONObject(snapshot))
         }.isSuccess
         recovery.edit()
