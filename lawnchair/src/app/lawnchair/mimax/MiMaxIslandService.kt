@@ -75,7 +75,7 @@ class MiMaxIslandService : NotificationListenerService() {
         if (island == null) {
             island = makeView(title, message)
             val params = WindowManager.LayoutParams(
-                dp(220), dp(48),
+                dp(220), dp(when (style) { IslandStyle.HIS -> 58; IslandStyle.LTIN -> 48; IslandStyle.COLOROS -> 54 }),
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -93,6 +93,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 visibility = if (expanded && message.isNotBlank()) View.VISIBLE else View.GONE
             }
             island?.background = islandBackground()
+            island?.let { updateIslandSize(it) }
         }
         if (!sbn.isOngoing && sbn.notification.category != "call" &&
             sbn.notification.category != "navigation") main.postDelayed(dismiss, 6500L)
