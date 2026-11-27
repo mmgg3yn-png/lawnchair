@@ -76,6 +76,9 @@ class MiMaxControlActivity : Activity() {
             MiMaxIslandPreferences.setEnabled(this, !MiMaxIslandPreferences.enabled(this))
             render()
         }
+        addButton("فتح وضع الصيانة والاسترداد") {
+            startActivity(Intent(this, MiMaxRecoveryActivity::class.java))
+        }
         root.addView(TextView(this).apply {
             val lastError = MiMaxCrashRecovery.lastError(this@MiMaxControlActivity)
             text = buildString {
