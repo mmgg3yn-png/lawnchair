@@ -4646,6 +4646,29 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
     }
 
+    /** Refreshes visible anchor cells after Mi_Max stacked-folder membership changes. */
+    public void refreshMiMaxFolderStackVisibility() {
+        List<MiMaxFolderStackStore.Stack> currentStacks =
+                new MiMaxFolderStackStore(getContext()).getAll();
+        mapOverItems((itemInfo, itemView) -> {
+            if (itemView instanceof FolderIcon folderIcon
+                    && itemInfo instanceof FolderInfo folderInfo) {
+                MiMaxFolderStackStore.Stack owner = null;
+                for (MiMaxFolderStackStore.Stack candidate : currentStacks) {
+                    if (candidate.getChildFolderIds().contains(folderInfo.id)) {
+                        owner = candidate;
+                        break;
+                    }
+                }
+                boolean isAnchor = owner == null || owner.getChildFolderIds().size() < 2
+                        || owner.getChildFolderIds().get(0) == folderInfo.id;
+                folderIcon.setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
+                folderIcon.invalidate();
+            }
+            return false;
+        });
+    }
+
     @Nullable
     @Override
     public CellInfo getCellInfoForView(@NonNull View view) {
