@@ -203,10 +203,8 @@ class MiMaxIslandService : NotificationListenerService() {
             ?: extras.getCharSequence("android.bigText"))?.toString()?.take(180).orEmpty()
         val mediaMetadata = mediaController?.metadata
         val eventPrefix = eventPrefix(sbn)
-        val title = (mediaMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
-            ?.takeIf { it.isNotBlank() } ?: notificationTitle).let { base ->
-                if (eventPrefix.isBlank()) base else "$eventPrefix • $base"
-            }
+        val title = mediaMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
+            ?.takeIf { it.isNotBlank() } ?: notificationTitle
         val baseMessage = if (mediaMetadata != null) {
             listOfNotNull(mediaMetadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
                 mediaMetadata.getString(MediaMetadata.METADATA_KEY_ALBUM)).joinToString(" • ")
@@ -501,6 +499,8 @@ class MiMaxIslandService : NotificationListenerService() {
                     if (expanded && mediaController != null) View.VISIBLE else View.GONE
                 findViewWithTag<LinearLayout>("notification_actions")?.visibility =
                     if (expanded && (findViewWithTag<LinearLayout>("notification_actions")?.childCount ?: 0) > 0) View.VISIBLE else View.GONE
+                findViewWithTag<TextView>("float_panel_button")?.visibility =
+                    if (expanded) View.VISIBLE else View.GONE
                 findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                     if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
                 updateIslandSize(this)
@@ -642,6 +642,20 @@ class MiMaxIslandService : NotificationListenerService() {
             toggleFloatingPanel(title = island?.findViewWithTag<TextView>("title")?.text?.toString().orEmpty())
         })
         content.addView(controls, LinearLayout.LayoutParams(-1, -2))
+
+        content.addView(TextView(this).apply {
+            tag = "float_panel_button"
+            text = if (floatingPanel == null) "▣  نافذة عائمة" else "إغلاق النافذة العائمة"
+            setTextColor(accent)
+            textSize = 10f
+            gravity = Gravity.CENTER
+            isClickable = true
+            visibility = if (expanded) View.VISIBLE else View.GONE
+            setOnClickListener {
+                toggleFloatingPanel(title = island?.findViewWithTag<TextView>("title")?.text?.toString().orEmpty())
+                text = if (floatingPanel == null) "▣  نافذة عائمة" else "إغلاق النافذة العائمة"
+            }
+        }, LinearLayout.LayoutParams(-1, -2))
 
         if (style == IslandStyle.COLOROS) {
             content.addView(TextView(this).apply {
