@@ -5,6 +5,11 @@
 package app.lawnchair.mimax
 
 import android.app.Notification
+import android.content.ComponentName
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.graphics.Color
@@ -34,6 +39,7 @@ class MiMaxIslandService : NotificationListenerService() {
     private val activeEvents = linkedMapOf<String, StatusBarNotification>()
     private var expanded = false
     private var style = IslandStyle.HIS
+    private var mediaController: MediaController? = null
     private val dismiss = Runnable { removeIsland() }
 
     override fun onListenerConnected() {
@@ -63,14 +69,23 @@ class MiMaxIslandService : NotificationListenerService() {
     private fun show(sbn: StatusBarNotification) {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
         val extras = sbn.notification.extras
-        val title = extras.getCharSequence("android.title")?.toString()?.take(80)
+        val notificationTitle = extras.getCharSequence("android.title")?.toString()?.take(80)
             ?: appLabel(sbn.packageName)
-        val message = (extras.getCharSequence("android.text")
+        val notificationMessage = (extras.getCharSequence("android.text")
             ?: extras.getCharSequence("android.bigText"))?.toString()?.take(180).orEmpty()
+        val mediaMetadata = mediaController?.metadata
+        val title = mediaMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
+            ?.takeIf { it.isNotBlank() } ?: notificationTitle
+        val message = if (mediaMetadata != null) {
+            listOfNotNull(mediaMetadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+                mediaMetadata.getString(MediaMetadata.METADATA_KEY_ALBUM)).joinToString(" • ")
+                .ifBlank { notificationMessage }
+        } else notificationMessage
         if (title.isBlank() && message.isBlank()) return
 
         activeKey = sbn.key
         style = MiMaxIslandPreferences.style(this)
+        refreshMediaSession()
         main.removeCallbacks(dismiss)
         if (island == null) {
             island = makeView(title, message)
@@ -92,11 +107,28 @@ class MiMaxIslandService : NotificationListenerService() {
                 text = message
                 visibility = if (expanded && message.isNotBlank()) View.VISIBLE else View.GONE
             }
+            island?.findViewWithTag<LinearLayout>("media_controls")?.visibility =
+                if (expanded && mediaController != null) View.VISIBLE else View.GONE
+            island?.findViewWithTag<TextView>("media_play")?.text =
+                if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶"
             island?.background = islandBackground()
             island?.let { updateIslandSize(it) }
         }
         if (!sbn.isOngoing && sbn.notification.category != "call" &&
             sbn.notification.category != "navigation") main.postDelayed(dismiss, 6500L)
+    }
+
+    private fun refreshMediaSession() {
+        mediaController = runCatching {
+            getSystemService(MediaSessionManager::class.java)
+                ?.getActiveSessions(ComponentName(this, MiMaxIslandService::class.java))
+                ?.firstOrNull { controller ->
+                    val state = controller.playbackState?.state
+                    state == PlaybackState.STATE_PLAYING ||
+                        state == PlaybackState.STATE_PAUSED ||
+                        state == PlaybackState.STATE_BUFFERING
+                }
+        }.getOrNull()
     }
 
     private fun cycleEvent(direction: Int) {
@@ -138,6 +170,8 @@ class MiMaxIslandService : NotificationListenerService() {
                 expanded = !expanded
                 findViewWithTag<TextView>("message")?.visibility =
                     if (expanded && findViewWithTag<TextView>("message")?.text?.isNotBlank() == true) View.VISIBLE else View.GONE
+                findViewWithTag<LinearLayout>("media_controls")?.visibility =
+                    if (expanded && mediaController != null) View.VISIBLE else View.GONE
                 updateIslandSize(this)
                 animate().scaleX(if (expanded) 1.025f else 1f)
                     .scaleY(if (expanded) 1.025f else 1f).setDuration(180).start()
@@ -203,6 +237,43 @@ class MiMaxIslandService : NotificationListenerService() {
             gravity = if (style == IslandStyle.COLOROS) Gravity.START else Gravity.CENTER
             visibility = View.GONE
         }, LinearLayout.LayoutParams(-1, -2))
+
+        val controls = LinearLayout(this).apply {
+            tag = "media_controls"
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        fun mediaButton(label: String, tagName: String, action: () -> Unit) =
+            TextView(this).apply {
+                tag = tagName
+                text = label
+                setTextColor(Color.WHITE)
+                textSize = 17f
+                gravity = Gravity.CENTER
+                isClickable = true
+                setOnClickListener { action() }
+                setPadding(dp(18), dp(4), dp(18), dp(4))
+            }
+        controls.addView(mediaButton("⏮", "media_previous") {
+            runCatching { mediaController?.transportControls?.skipToPrevious() }
+        })
+        controls.addView(mediaButton(
+            if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶",
+            "media_play",
+        ) {
+            runCatching {
+                val controls = mediaController?.transportControls
+                if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) controls?.pause()
+                else controls?.play()
+            }
+            island?.findViewWithTag<TextView>("media_play")?.text =
+                if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶"
+        })
+        controls.addView(mediaButton("⏭", "media_next") {
+            runCatching { mediaController?.transportControls?.skipToNext() }
+        })
+        content.addView(controls, LinearLayout.LayoutParams(-1, -2))
 
         if (content !== root) {
             root.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
