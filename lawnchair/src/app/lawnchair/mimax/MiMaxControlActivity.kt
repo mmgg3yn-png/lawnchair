@@ -38,6 +38,7 @@ class MiMaxControlActivity : Activity() {
     private val requestImportExtension = 7105
     private val requestExportExtension = 7106
     private val requestWeatherLocation = 7107
+    private val requestPhoneState = 7108
     private var pendingExtensionExport: MiMaxExtensionCodec.Definition? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,6 +84,13 @@ class MiMaxControlActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == requestPhoneState) {
+            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "تم تفعيل رصد حالة المكالمات حتى دون إشعار", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "لم يتم منح إذن حالة الهاتف؛ ستبقى المكالمات التي ترسل إشعارات فقط مدعومة", Toast.LENGTH_LONG).show()
+            }
+        }
         if (requestCode == requestWeatherLocation) {
             if (grantResults.isNotEmpty() &&
                 grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -162,6 +170,13 @@ class MiMaxControlActivity : Activity() {
         }
         addButton("منح إذن الوصول للإشعارات") {
             startActivity(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+        addButton("تفعيل رصد المكالمات دون إشعارات") {
+            if (checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "إذن حالة الهاتف مفعّل بالفعل", Toast.LENGTH_SHORT).show()
+            } else {
+                requestPermissions(arrayOf(android.Manifest.permission.READ_PHONE_STATE), requestPhoneState)
+            }
         }
         addButton("تحديث الطقس في Me Island") { requestMiMaxWeather() }
         val timerMinutes = EditText(this).apply {
