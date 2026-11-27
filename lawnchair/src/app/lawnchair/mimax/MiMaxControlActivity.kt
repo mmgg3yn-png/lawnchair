@@ -5,6 +5,7 @@
 package app.lawnchair.mimax
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.ComponentName
 import android.net.Uri
@@ -289,11 +290,23 @@ class MiMaxControlActivity : Activity() {
             render()
         }
         root.addView(TextView(this).apply {
+            text = "الخصوصية والأداء"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        addButton("لوحة الخصوصية والأذونات") { showPrivacyDashboard() }
+        addButton("مراقبة أداء الجهاز وMi_Max") { showPerformanceMonitor() }
+
+        root.addView(TextView(this).apply {
             text = "محرر ثيم الجزيرة"
             textSize = 18f
             setTextColor(0xFFFFFFFF.toInt())
             setPadding(0, dp(24), 0, dp(8))
         })
+        addButton("تطبيق قالب HyperOS — HIS") { applyThemePreset(IslandStyle.HIS) }
+        addButton("تطبيق قالب iPhone — LTIN") { applyThemePreset(IslandStyle.LTIN) }
+        addButton("تطبيق قالب ColorOS") { applyThemePreset(IslandStyle.COLOROS) }
         val themePrefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
         fun themeField(hintText: String, value: String, numeric: Boolean = false) =
             EditText(this).apply {
@@ -431,6 +444,86 @@ class MiMaxControlActivity : Activity() {
             ?: return false
         val expected = ComponentName(this, MiMaxIslandService::class.java).flattenToString()
         return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+    }
+
+    private fun applyThemePreset(style: IslandStyle) {
+        val (accent, background, radius, width, label) = when (style) {
+            IslandStyle.HIS -> Quintuple(
+                0xFF8C9BFF.toInt(), 0xF0181D2B.toInt(), 22, 320, "HyperOS"
+            )
+            IslandStyle.LTIN -> Quintuple(
+                0xFFFFFFFF.toInt(), 0xF0060608.toInt(), 28, 345, "iPhone"
+            )
+            IslandStyle.COLOROS -> Quintuple(
+                0xFF52C7A5.toInt(), 0xF01B2228.toInt(), 24, 330, "ColorOS"
+            )
+        }
+        getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
+            .putString("island_style", style.name)
+            .putInt("mt1_accent_color", accent)
+            .putInt("mt1_background_color", background)
+            .putInt("mt1_corner_radius", radius)
+            .putInt("mt1_width", width)
+            .putString("mt1_theme_name", "$label Preset")
+            .apply()
+        MiMaxIslandPreferences.setStyle(this, style)
+        sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
+        Toast.makeText(this, "تم تطبيق قالب $label ويمكنك تعديله يدوياً", Toast.LENGTH_SHORT).show()
+        render()
+    }
+
+    private data class Quintuple(
+        val accent: Int,
+        val background: Int,
+        val radius: Int,
+        val width: Int,
+        val label: String
+    )
+
+    private fun showPrivacyDashboard() {
+        val overlayGranted = Settings.canDrawOverlays(this)
+        val listenerGranted = isNotificationListenerEnabled()
+        val message = buildString {
+            appendLine("الظهور فوق التطبيقات: ${if (overlayGranted) "ممنوح" else "غير ممنوح"}")
+            appendLine("الوصول إلى الإشعارات: ${if (listenerGranted) "ممنوح" else "غير ممنوح"}")
+            appendLine()
+            append("يستخدم Mi_Max هذين الإذنين لعرض Me Island. يمكنك سحب كل إذن من إعدادات أندرويد في أي وقت.")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("الخصوصية والأذونات")
+            .setMessage(message)
+            .setPositiveButton("إعدادات الظهور فوق التطبيقات") { _, _ ->
+                startActivity(Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                ))
+            }
+            .setNeutralButton("إعدادات الوصول للإشعارات") { _, _ ->
+                startActivity(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+            .setNegativeButton("إغلاق", null)
+            .show()
+    }
+
+    private fun showPerformanceMonitor() {
+        val report = TextView(this).apply {
+            text = MiMaxPerformanceMonitor.snapshot(this@MiMaxControlActivity)
+            textSize = 14f
+            setTextColor(0xFFECECF2.toInt())
+            setPadding(dp(18), dp(8), dp(18), dp(8))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("مراقبة الأداء")
+            .setView(report)
+            .setPositiveButton("تحديث", null)
+            .setNegativeButton("إغلاق", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                report.text = MiMaxPerformanceMonitor.snapshot(this)
+            }
+        }
+        dialog.show()
     }
 
     private fun choose(style: IslandStyle) {
