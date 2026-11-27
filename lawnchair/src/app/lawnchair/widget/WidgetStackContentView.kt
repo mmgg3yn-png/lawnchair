@@ -98,7 +98,7 @@ class WidgetStackContentView @JvmOverloads constructor(
         null
     }
     private val widgetHolder: LauncherWidgetHolder? = launcher?.appWidgetHolder
-    private val widgetInflater: WidgetInflater? = launcher?.let { WidgetInflater(it) }
+    private val widgetInflater: WidgetInflater? = launcher?.let { WidgetInflater(it, it.packageManager.isSafeMode) }
 
     // ──────────────────────────────────────────────────────────────
     // Lifecycle
@@ -565,7 +565,7 @@ class WidgetStackContentView @JvmOverloads constructor(
 
     private fun findWidgetInfo(widgetId: Int): LauncherAppWidgetInfo? {
         knownWidgetInfos[widgetId]?.let { return it }
-        val bgDataModel = launcher?.model?.getBgDataModel() ?: return null
+        val bgDataModel = launcher?.model?.bgDataModel ?: return null
         return synchronized(bgDataModel) {
             for (item in bgDataModel.itemsIdMap) {
                 if (item is LauncherAppWidgetInfo && item.appWidgetId == widgetId) {
