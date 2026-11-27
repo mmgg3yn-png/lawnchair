@@ -296,14 +296,19 @@ class MiMaxIslandService : NotificationListenerService() {
             append(' ')
             append(extras.getCharSequence("android.subText") ?: "")
         }.lowercase()
+        val hasProgress = extras.getInt("android.progress", -1) >= 0 &&
+            extras.getInt("android.progressMax", 0) > 0
+        val ongoing = sbn.isOngoing ||
+            (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
         return when {
-            category == Notification.CATEGORY_CALL -> "CALL"
+            category == Notification.CATEGORY_CALL ||
+                (ongoing && (text.contains("ongoing call") || text.contains("call in progress") ||
+                    text.contains("مكالمة جارية") || text.contains("مكالمة نشطة"))) -> "CALL"
             category == Notification.CATEGORY_NAVIGATION -> "NAVIGATION"
             category == Notification.CATEGORY_ALARM ||
                 category == Notification.CATEGORY_REMINDER -> "TIMER"
-            (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 &&
-                (text.contains("download") || text.contains("downloading") ||
-                    text.contains("تنزيل") || text.contains("تحميل")) -> "DOWNLOAD"
+            hasProgress || (ongoing && (text.contains("download") || text.contains("downloading") ||
+                text.contains("تنزيل") || text.contains("تحميل"))) -> "DOWNLOAD"
             text.contains("screen recording") || text.contains("recording screen") ||
                 text.contains("تسجيل الشاشة") || text.contains("مسجل الشاشة") -> "SCREEN RECORDING"
             text.contains("voice recording") || text.contains("recording audio") ||
@@ -316,8 +321,8 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun isPersistentActivity(sbn: StatusBarNotification): Boolean {
         val category = sbn.notification.category
-        return sbn.isOngoing || category == Notification.CATEGORY_CALL ||
-            category == Notification.CATEGORY_NAVIGATION ||
+        return sbn.isOngoing || eventPrefix(sbn) == "CALL" ||
+            eventPrefix(sbn) == "TIMER" || category == Notification.CATEGORY_NAVIGATION ||
             category == Notification.CATEGORY_ALARM ||
             category == Notification.CATEGORY_REMINDER
     }
