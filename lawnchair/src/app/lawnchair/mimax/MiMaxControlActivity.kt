@@ -26,6 +26,8 @@ class MiMaxControlActivity : Activity() {
     private lateinit var root: LinearLayout
     private val requestImportMt1 = 7101
     private val requestExportMt1 = 7102
+    private val requestImportBackup = 7103
+    private val requestExportBackup = 7104
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -195,6 +197,34 @@ class MiMaxControlActivity : Activity() {
                 }, requestExportMt1
             )
         }
+        root.addView(TextView(this).apply {
+            text = "النسخ الاحتياطي والاستعادة"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        addButton("تصدير نسخة احتياطية من إعدادات Mi_Max") {
+            startActivityForResult(
+                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_TITLE, "MiMax-Backup.json")
+                }, requestExportBackup
+            )
+        }
+        addButton("استعادة إعدادات Mi_Max من نسخة احتياطية") {
+            startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/json"
+                }, requestImportBackup
+            )
+        }
+        root.addView(TextView(this).apply {
+            text = "تشمل النسخة إعدادات Mi_Max والثيمات والجزيرة والمجلدات المكدسة. لا تشمل ترتيب الشاشة الرئيسية أو قاعدة بيانات Lawnchair أو التطبيقات والويدجت أو أذونات أندرويد."
+            textSize = 12f
+            setTextColor(0xFFB8B8C2.toInt())
+        })
         root.addView(TextView(this).apply {
             text = "ملفات الثيمات والأنماط"
             textSize = 18f
@@ -417,6 +447,44 @@ class MiMaxControlActivity : Activity() {
         when (requestCode) {
             requestImportMt1 -> importMt1(uri)
             requestExportMt1 -> exportMt1(uri)
+            requestImportBackup -> importBackup(uri)
+            requestExportBackup -> exportBackup(uri)
+        }
+    }
+
+    private fun importBackup(uri: Uri) {
+        runCatching {
+            val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= 2 * 1024 * 1024) { "ملف النسخة الاحتياطية كبير جداً" }
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            } ?: error("تعذر قراءة الملف")
+            MiMaxBackupManager.restore(this, bytes)
+            sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
+            sendBroadcast(Intent("app.lawnchair.mimax.ACTION_FOCUS_MODE_CHANGED"))
+            Toast.makeText(this, "تمت استعادة إعدادات Mi_Max. قد تحتاج بعض عناصر الشاشة إلى إعادة فتح المشغّل.", Toast.LENGTH_LONG).show()
+            render()
+        }.onFailure {
+            Toast.makeText(this, "فشلت الاستعادة: " + (it.message ?: "ملف غير صالح"), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun exportBackup(uri: Uri) {
+        runCatching {
+            val bytes = MiMaxBackupManager.export(this)
+            contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                ?: error("تعذر إنشاء الملف")
+            Toast.makeText(this, "تم تصدير نسخة إعدادات Mi_Max", Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(this, "فشل التصدير: " + (it.message ?: "خطأ غير معروف"), Toast.LENGTH_LONG).show()
         }
     }
 
