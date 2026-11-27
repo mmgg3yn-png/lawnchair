@@ -255,6 +255,24 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                         }
                         dialog.dismiss();
                     })
+                    .setNeutralButton("فك التكديس", (dialog, which) -> {
+                        if (store.delete(stack.getId())) {
+                            View workspace = ((Launcher) activity).getWorkspace();
+                            for (Long childId : stack.getChildFolderIds()) {
+                                FolderIcon child = findStackFolderIcon(workspace, childId);
+                                if (child != null) {
+                                    child.setVisibility(View.VISIBLE);
+                                    child.invalidate();
+                                }
+                            }
+                            android.widget.Toast.makeText(
+                                    clicked.getContext(),
+                                    "تم فك تكديس المجلدات",
+                                    android.widget.Toast.LENGTH_SHORT
+                            ).show();
+                        }
+                        dialog.dismiss();
+                    })
                     .setNegativeButton(android.R.string.cancel, null)
                     .show();
         });
@@ -272,7 +290,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                     .findFirst().orElse(null);
             if (stack != null && stack.getChildFolderIds().size() > 1
                     && stack.getChildFolderIds().get(0) != folderInfo.id) {
-                icon.setVisibility(View.GONE);
+                icon.setVisibility(View.INVISIBLE);
             }
         } catch (RuntimeException ignored) {
             // A persistence read failure must never prevent normal folder binding.
