@@ -4618,6 +4618,29 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
         }
 
+        // Folder icons may have become visible stack members again after a child
+        // folder was deleted. Reconcile every workspace folder against the
+        // persisted stack model; INVISIBLE preserves its cell and drag geometry.
+        List<MiMaxFolderStackStore.Stack> currentStacks =
+                new MiMaxFolderStackStore(getContext()).getAll();
+        mapOverItems((itemInfo, itemView) -> {
+            if (itemView instanceof FolderIcon folderIcon
+                    && itemInfo instanceof FolderInfo folderInfo) {
+                MiMaxFolderStackStore.Stack owner = null;
+                for (MiMaxFolderStackStore.Stack candidate : currentStacks) {
+                    if (candidate.getChildFolderIds().contains(folderInfo.id)) {
+                        owner = candidate;
+                        break;
+                    }
+                }
+                boolean isAnchor = owner == null || owner.getChildFolderIds().size() < 2
+                        || owner.getChildFolderIds().get(0) == folderInfo.id;
+                folderIcon.setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
+                folderIcon.invalidate();
+            }
+            return false;
+        });
+
         if (persistChanges) {
             stripEmptyScreens();
         }
