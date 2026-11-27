@@ -32,6 +32,9 @@ import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
 import kotlin.math.roundToInt
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /** Notification-backed Me Island. User-granted notification and overlay access are required. */
 class MiMaxIslandService : NotificationListenerService() {
@@ -46,9 +49,15 @@ class MiMaxIslandService : NotificationListenerService() {
     private val dismiss = Runnable { removeIsland() }
     private var lastMessage = ""
     private var batteryStatusText = ""
+    private var clockStatusText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
     private var batteryReceiverRegistered = false
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_TIME_TICK) {
+                clockStatusText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                island?.findViewWithTag<TextView>("message")?.let { it.text = displayMessage() }
+                return
+            }
             if (intent.action != Intent.ACTION_BATTERY_CHANGED) return
             val level = intent.getIntExtra("level", -1)
             val scale = intent.getIntExtra("scale", 100).coerceAtLeast(1)
@@ -66,7 +75,10 @@ class MiMaxIslandService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         runCatching {
-            registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            registerReceiver(batteryReceiver, IntentFilter().apply {
+                addAction(Intent.ACTION_BATTERY_CHANGED)
+                addAction(Intent.ACTION_TIME_TICK)
+            })
             batteryReceiverRegistered = true
         }
     }
@@ -172,6 +184,10 @@ class MiMaxIslandService : NotificationListenerService() {
             (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 &&
                 (text.contains("download") || text.contains("downloading") ||
                     text.contains("تنزيل") || text.contains("تحميل")) -> "DOWNLOAD"
+            text.contains("screen recording") || text.contains("recording screen") ||
+                text.contains("تسجيل الشاشة") || text.contains("مسجل الشاشة") -> "SCREEN RECORDING"
+            text.contains("voice recording") || text.contains("recording audio") ||
+                text.contains("تسجيل صوت") -> "VOICE RECORDING"
             text.contains("stopwatch") || text.contains("timer") ||
                 text.contains("مؤقت") || text.contains("ساعة الإيقاف") -> "TIMER"
             else -> ""
@@ -187,7 +203,8 @@ class MiMaxIslandService : NotificationListenerService() {
     }
 
     private fun displayMessage(): String =
-        listOf(lastMessage, batteryStatusText).filter { it.isNotBlank() }.joinToString("  •  ")
+        listOf(lastMessage, batteryStatusText, clockStatusText)
+            .filter { it.isNotBlank() }.joinToString("  •  ")
 
     private fun refreshMediaSession() {
         mediaController = runCatching {
