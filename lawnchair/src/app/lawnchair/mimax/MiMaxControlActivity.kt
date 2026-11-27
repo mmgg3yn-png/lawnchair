@@ -150,6 +150,22 @@ class MiMaxControlActivity : Activity() {
         addButton("تصميم HyperOS — HIS") { choose(IslandStyle.HIS) }
         addButton("تصميم iPhone — LTIN") { choose(IslandStyle.LTIN) }
         addButton("تصميم ColorOS") { choose(IslandStyle.COLOROS) }
+        addButton(
+            if (themePrefsMotionEnabled()) "تقليل الحركة: مفعّل" else "تقليل الحركة: متوقف"
+        ) {
+            val prefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            val next = !prefs.getBoolean("island_reduce_motion", false)
+            prefs.edit().putBoolean("island_reduce_motion", next).apply()
+            Toast.makeText(this, if (next) "تم تقليل الحركة" else "عادت الحركات", Toast.LENGTH_SHORT).show()
+            render()
+        }
+        addButton("سرعة حركة الجزيرة: تغيير السرعة") {
+            val prefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            val current = prefs.getInt("island_animation_duration", 220)
+            val next = when (current) { 120 -> 220; 350 -> 120; else -> 350 }
+            prefs.edit().putInt("island_animation_duration", next).apply()
+            Toast.makeText(this, "مدة الحركة: $next ms", Toast.LENGTH_SHORT).show()
+        }
         addButton("استيراد ثيم MT1") {
             startActivityForResult(
                 Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -245,6 +261,10 @@ class MiMaxControlActivity : Activity() {
             setPadding(0, dp(12), 0, 0)
         })
     }
+
+    private fun themePrefsMotionEnabled(): Boolean =
+        getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            .getBoolean("island_reduce_motion", false)
 
     private fun addButton(label: String, action: () -> Unit) {
         root.addView(Button(this).apply {
