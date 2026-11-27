@@ -2298,23 +2298,11 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             FolderInfo sourceFolder = (FolderInfo) newView.getTag();
             if (destinationFolder.id != sourceFolder.id) {
                 MiMaxFolderStackStore store = new MiMaxFolderStackStore(getContext());
-                boolean alreadyStacked = store.getAll().stream().anyMatch(stack ->
-                        stack.getChildFolderIds().contains(destinationFolder.id)
-                                || stack.getChildFolderIds().contains(sourceFolder.id));
-                if (!alreadyStacked) {
-                    store.create(destinationFolder.title == null ? "Folder Stack"
-                                    : destinationFolder.title.toString(),
-                            java.util.Arrays.asList(destinationFolder.id, sourceFolder.id));
-                } else {
-                    MiMaxFolderStackStore.Stack existing = store.getAll().stream()
-                            .filter(stack -> stack.getChildFolderIds().contains(destinationFolder.id)
-                                    || stack.getChildFolderIds().contains(sourceFolder.id))
-                            .findFirst().orElse(null);
-                    if (existing != null) {
-                        store.addFolder(existing.getId(), destinationFolder.id);
-                        store.addFolder(existing.getId(), sourceFolder.id);
-                    }
-                }
+                store.mergeFolders(
+                        destinationFolder.title == null ? "Folder Stack"
+                                : destinationFolder.title.toString(),
+                        destinationFolder.id,
+                        sourceFolder.id);
                 return true;
             }
         }
