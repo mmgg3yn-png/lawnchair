@@ -760,7 +760,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 "CALL IN PROGRESS" else "INCOMING CALL"
         sbn != null && eventPrefix(sbn) == "TIMER" -> "LIVE TIMER"
         sbn != null && eventPrefix(sbn) == "NAVIGATION" -> "LIVE NAVIGATION"
-        mediaController != null -> "NOW PLAYING"
+        isCurrentMediaActivity(sbn) -> "NOW PLAYING"
         else -> "LIVE ACTIVITY"
     }
 
@@ -781,7 +781,7 @@ class MiMaxIslandService : NotificationListenerService() {
                     "مكالمة جارية" else "مكالمة واردة"
             sbn != null && eventPrefix(sbn) == "TIMER" -> "المؤقت يعمل"
             sbn != null && eventPrefix(sbn) == "NAVIGATION" -> "التنقل نشط"
-            mediaController != null -> "تشغيل الوسائط"
+            isCurrentMediaActivity(sbn) -> "تشغيل الوسائط"
             else -> "نشاط مباشر"
         }
     }
