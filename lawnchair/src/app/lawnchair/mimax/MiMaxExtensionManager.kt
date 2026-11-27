@@ -241,6 +241,17 @@ object MiMaxExtensionManager {
         return updated
     }
 
+    /** Emergency safe-mode action: disable every data-only extension without removing data. */
+    @Synchronized
+    fun disableAllForRecovery(context: Context) {
+        val installed = getAll(context)
+        save(context, installed.map { extension ->
+            if (extension.enabled) {
+                extension.copy(enabled = false, lastError = extension.lastError ?: "تم الإيقاف من وضع الاستعادة")
+            } else extension
+        })
+    }
+
     @Synchronized
     fun uninstall(context: Context, id: String): Boolean {
         val installed = getAll(context)
