@@ -74,7 +74,7 @@ class MiMaxIslandService : NotificationListenerService() {
     private var batteryReceiverRegistered = false
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == ACTION_TIMER_UPDATED) {
+            if (intent.action == MiMaxIslandPreferences.ACTION_TIMER_UPDATED) {
                 main.removeCallbacks(timerTicker)
                 timerTicker.run()
                 return
@@ -104,7 +104,7 @@ class MiMaxIslandService : NotificationListenerService() {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_BATTERY_CHANGED)
                 addAction(Intent.ACTION_TIME_TICK)
-                addAction(ACTION_TIMER_UPDATED)
+                addAction(MiMaxIslandPreferences.ACTION_TIMER_UPDATED)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -628,7 +628,7 @@ enum class IslandStyle { HIS, LTIN, COLOROS }
 
 
 object MiMaxIslandPreferences {
-    const val ACTION_TIMER_UPDATED = "app.lawnchair.mimax.TIMER_UPDATED"
+    const val MiMaxIslandPreferences.ACTION_TIMER_UPDATED = "app.lawnchair.mimax.TIMER_UPDATED"
     private const val PREFS = "mimax_launcher"
     private const val TEST_CHANNEL = "mimax_island_test"
     private const val TEST_NOTIFICATION_ID = 91427
