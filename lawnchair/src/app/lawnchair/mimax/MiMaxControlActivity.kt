@@ -219,6 +219,18 @@ class MiMaxControlActivity : Activity() {
             Toast.makeText(this, "عدد صفوف Dock: $next", Toast.LENGTH_SHORT).show()
             render()
         }
+        addButton("صفوف المجلدات: زيادة") {
+            val next = (launcherPrefs.folderRows.get() + 1).coerceAtMost(6)
+            launcherPrefs.folderRows.set(next)
+            Toast.makeText(this, "عدد صفوف المجلد: $next", Toast.LENGTH_SHORT).show()
+            render()
+        }
+        addButton("صفوف المجلدات: تقليل") {
+            val next = (launcherPrefs.folderRows.get() - 1).coerceAtLeast(2)
+            launcherPrefs.folderRows.set(next)
+            Toast.makeText(this, "عدد صفوف المجلد: $next", Toast.LENGTH_SHORT).show()
+            render()
+        }
         addButton("إعادة Dock إلى صفحة واحدة وصف واحد") {
             launcherPrefs.dockPages.set(1)
             launcherPrefs.hotseatRows.set(1)
@@ -319,6 +331,7 @@ class MiMaxControlActivity : Activity() {
             .putInt("island_animation_duration", source.getInt("island_animation_duration", 220))
             .putInt("dock_pages", launcherPrefs.dockPages.get())
             .putInt("dock_rows", launcherPrefs.hotseatRows.get())
+            .putInt("folder_rows", launcherPrefs.folderRows.get())
             .putBoolean("profile_saved", true)
             .apply()
         Toast.makeText(this, "تم حفظ النمط $slot", Toast.LENGTH_SHORT).show()
@@ -344,6 +357,7 @@ class MiMaxControlActivity : Activity() {
         val launcherPrefs = PreferenceManager.getInstance(this)
         launcherPrefs.dockPages.set(source.getInt("dock_pages", 1).coerceIn(1, 5))
         launcherPrefs.hotseatRows.set(source.getInt("dock_rows", 1).coerceIn(1, 2))
+        launcherPrefs.folderRows.set(source.getInt("folder_rows", launcherPrefs.folderRows.get()).coerceIn(2, 6))
         sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
         Toast.makeText(this, "تم تطبيق النمط $slot", Toast.LENGTH_SHORT).show()
         render()
