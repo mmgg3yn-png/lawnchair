@@ -49,6 +49,7 @@ import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
+import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.views.ActivityContext;
 
@@ -417,6 +418,10 @@ public class PreviewItemManager {
         } else if (item instanceof AppPairInfo api) {
             AppPairIconDrawingParams appPairParams = new AppPairIconDrawingParams(mContext, DISPLAY_FOLDER);
             p.drawable = AppPairIconGraphic.composeDrawable(api, appPairParams);
+            p.drawable.setBounds(0, 0, iconSize, iconSize);
+        } else if (item instanceof FolderInfo nestedFolder) {
+            // Mi_Max: show a layered-folder glyph for nested folder stack members.
+            p.drawable = new FolderStackPreviewDrawable(nestedFolder.getContents().size());
             p.drawable.setBounds(0, 0, iconSize, iconSize);
         } else if (item instanceof ItemInfoWithIcon withIcon){
             // LC-Note: a folder on the workspace must follow the workspace themed-icon
