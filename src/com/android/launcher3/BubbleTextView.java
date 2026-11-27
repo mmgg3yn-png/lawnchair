@@ -195,7 +195,8 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     private boolean mLayoutHorizontal;
     private final boolean mIsRtl;
-    private final int mIconSize;
+    private final int mBaseIconSize;
+    private int mIconSize;
 
     @ViewDebug.ExportedProperty(category = "launcher")
     private boolean mHideBadge = false;
@@ -315,8 +316,9 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         }
         FontManager.INSTANCE.get(context).overrideFont(this, attrs);
 
-        mIconSize = a.getDimensionPixelSize(R.styleable.BubbleTextView_iconSizeOverride,
+        mBaseIconSize = a.getDimensionPixelSize(R.styleable.BubbleTextView_iconSizeOverride,
                 defaultIconSize);
+        mIconSize = mBaseIconSize;
         a.recycle();
 
         mRunningAppIndicatorHeight =
@@ -421,6 +423,11 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public void applyFromWorkspaceItem(WorkspaceItemInfo info) {
         applyIconAndLabel(info);
         setItemInfo(info);
+        // Mi_Max: scale workspace icons according to their persisted multi-cell span.
+        float superIconScale = info.container == LauncherSettings.Favorites.CONTAINER_DESKTOP
+                ? Math.min(1.8f, 1f + 0.35f * (Math.max(info.spanX, info.spanY) - 1))
+                : 1f;
+        setSuperIconScale(superIconScale);
 
         applyDotState(info, false /* animate */);
         setDownloadStateContentDescription(info, info.getProgressLevel());
@@ -1552,6 +1559,20 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
             mIconLoadRequest = LauncherAppState.getInstance(getContext()).getIconCache()
                     .updateIconInBackground(BubbleTextView.this, info, expectedFlag);
         }
+    }
+
+    /**
+     * Mi_Max: apply a persisted Super Icon scale without changing the launcher grid geometry.
+     */
+    public void setSuperIconScale(float scale) {
+        int targetSize = Math.max(1, Math.round(mBaseIconSize * Math.max(1f, scale)));
+        if (targetSize == mIconSize) return;
+        mIconSize = targetSize;
+        if (mIcon != null) {
+            mIcon.setBounds(0, 0, mIconSize, mIconSize);
+        }
+        requestLayout();
+        invalidate();
     }
 
     public int getIconSize() {
