@@ -51,6 +51,7 @@ import app.lawnchair.ui.popup.LawnchairShortcut
 import app.lawnchair.util.getThemedIconPacksInstalled
 import app.lawnchair.util.unsafeLazy
 import app.lawnchair.views.LawnchairFloatingSurfaceView
+import app.lawnchair.widget.WidgetStackShortcut
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BaseActivity
 import com.android.launcher3.BubbleTextView
@@ -284,7 +285,12 @@ class LawnchairLauncher : QuickstepLauncher() {
     override fun getSupportedShortcuts(container: Int): Stream<SystemShortcut.Factory<*>> = Stream.concat(
         super.getSupportedShortcuts(container),
         Stream.concat(
-            Stream.of(LawnchairShortcut.UNINSTALL, LawnchairShortcut.CUSTOMIZE, LawnchairShortcut.OPEN_IN_STORE),
+            Stream.of(
+                LawnchairShortcut.UNINSTALL,
+                LawnchairShortcut.CUSTOMIZE,
+                LawnchairShortcut.OPEN_IN_STORE,
+                WidgetStackShortcut.FACTORY,
+            ),
             Stream.of(LawnchairShortcut.PAUSE_APPS),
         ),
     )
@@ -318,16 +324,18 @@ class LawnchairLauncher : QuickstepLauncher() {
     }
 
     fun bindItems(items: List<ItemInfo>, forceAnimateIcons: Boolean) {
-        // pE-TODO(QPR1): Note: null is modelWriter + bindItems override something
-        val inflatedItems = items.map { i ->
-            Pair.create(
-                i,
-                itemInflater?.inflateItem(
+        // Load each widget stack once while the workspace batch is inflated.
+        itemInflater?.clearWidgetStackLoadCache()
+        val inflatedItems = try {
+            items.map { i ->
+                Pair.create(
                     i,
-                    null,
-                ),
-            )
-        }.toList()
+                    itemInflater?.inflateItem(i, null),
+                )
+            }
+        } finally {
+            itemInflater?.clearWidgetStackLoadCache()
+        }
         bindInflatedItems(inflatedItems, if (forceAnimateIcons) AnimatorSet() else null)
     }
 
