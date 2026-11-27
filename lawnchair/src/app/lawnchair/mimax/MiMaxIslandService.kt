@@ -152,7 +152,7 @@ class MiMaxIslandService : NotificationListenerService() {
         main.post {
             activeEvents.remove(sbn.key)
             island?.findViewWithTag<LinearLayout>("event_switcher")?.visibility =
-                if (activeEvents.size > 1) View.VISIBLE else View.GONE
+                if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
             island?.findViewWithTag<TextView>("event_count")?.text = eventPositionLabel()
             if (sbn.key == activeKey) {
                 activeEvents.values.lastOrNull()?.let { show(it) } ?: removeIsland()
@@ -311,7 +311,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 }, LinearLayout.LayoutParams(0, -2, 1f))
             }
         }
-        container.visibility = if (container.childCount > 0) View.VISIBLE else View.GONE
+        container.visibility = if (expanded && container.childCount > 0) View.VISIBLE else View.GONE
     }
 
     private fun eventPositionLabel(): String {
@@ -408,6 +408,10 @@ class MiMaxIslandService : NotificationListenerService() {
                     if (expanded && findViewWithTag<TextView>("message")?.text?.isNotBlank() == true) View.VISIBLE else View.GONE
                 findViewWithTag<LinearLayout>("media_controls")?.visibility =
                     if (expanded && mediaController != null) View.VISIBLE else View.GONE
+                findViewWithTag<LinearLayout>("notification_actions")?.visibility =
+                    if (expanded && findViewWithTag<LinearLayout>("notification_actions")?.childCount ?: 0 > 0) View.VISIBLE else View.GONE
+                findViewWithTag<LinearLayout>("event_switcher")?.visibility =
+                    if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
                 updateIslandSize(this)
                 animate().scaleX(if (expanded) 1.025f else 1f)
                     .scaleY(if (expanded) 1.025f else 1f).setDuration(180).start()
