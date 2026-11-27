@@ -503,7 +503,6 @@ public class Hotseat extends FrameLayout implements Insettable {
         // Multi-page dock: own the icon-band stream and dispatch it to the pager so empty
         // pages can still scroll (same pattern as single-page workspace forwarding).
         if (mPagedView.isPagingEnabled()) {
-            final int action = ev.getAction() & MotionEvent.ACTION_MASK;
             if (action == MotionEvent.ACTION_DOWN) {
                 mSendTouchToPager = true;
                 mSendTouchToWorkspace = false;
