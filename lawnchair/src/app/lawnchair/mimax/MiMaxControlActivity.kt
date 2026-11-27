@@ -6,6 +6,7 @@ package app.lawnchair.mimax
 
 import android.app.Activity
 import android.content.Intent
+import android.content.ComponentName
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -63,6 +64,22 @@ class MiMaxControlActivity : Activity() {
         addButton("منح إذن الوصول للإشعارات") {
             startActivity(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
+        addButton("إرسال إشعار تجريبي للجزيرة") {
+            if (isNotificationListenerEnabled()) {
+                MiMaxIslandPreferences.postTestNotification(this)
+                Toast.makeText(this, "تم إرسال إشعار الاختبار", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "امنح إذن الوصول للإشعارات أولاً", Toast.LENGTH_LONG).show()
+                startActivity(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+        }
+        addButton("إعادة موضع الجزيرة إلى الافتراضي") {
+            getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
+                .remove("island_position_x")
+                .remove("island_position_y")
+                .apply()
+            Toast.makeText(this, "سيُطبّق الموضع الافتراضي عند ظهور الجزيرة التالية", Toast.LENGTH_LONG).show()
+        }
         addButton("تصميم HyperOS — HIS") { choose(IslandStyle.HIS) }
         addButton("تصميم iPhone — LTIN") { choose(IslandStyle.LTIN) }
         addButton("تصميم ColorOS") { choose(IslandStyle.COLOROS) }
@@ -71,6 +88,11 @@ class MiMaxControlActivity : Activity() {
             setTextColor(0xFFB9D7FF.toInt())
             textSize = 13f
             setPadding(0, dp(18), 0, dp(6))
+        })
+        root.addView(TextView(this).apply {
+            text = "حالة إذن الإشعارات: " + if (isNotificationListenerEnabled()) "ممنوح" else "غير ممنوح"
+            setTextColor(0xFFB9D7FF.toInt())
+            textSize = 13f
         })
         root.addView(TextView(this).apply {
             text = "تعتمد الأحداث على الإشعارات والأنشطة المستمرة المتاحة لتطبيقات الطرف الثالث. لا يملك اللانشر صلاحية قراءة الحالة الخاصة لكل تطبيق أو التحكم بمكالمات النظام."
@@ -86,6 +108,13 @@ class MiMaxControlActivity : Activity() {
             isAllCaps = false
             setOnClickListener { action() }
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+    }
+
+    private fun isNotificationListenerEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+            ?: return false
+        val expected = ComponentName(this, MiMaxIslandService::class.java).flattenToString()
+        return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 
     private fun choose(style: IslandStyle) {
