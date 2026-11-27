@@ -5,6 +5,7 @@
 package app.lawnchair.mimax
 
 import android.content.Context
+import android.content.Intent
 import org.json.JSONArray
 import org.json.JSONObject
 
