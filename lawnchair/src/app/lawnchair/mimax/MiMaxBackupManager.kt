@@ -26,7 +26,9 @@ object MiMaxBackupManager {
         "mimax_stacked_folders",
         "mimax_profile_1",
         "mimax_profile_2",
-        "mimax_profile_3"
+        "mimax_profile_3",
+        "mimax_extensions",
+        "mimax_extension_recovery"
     )
 
     fun export(context: Context): ByteArray {
