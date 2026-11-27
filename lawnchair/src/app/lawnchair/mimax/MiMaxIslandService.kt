@@ -265,6 +265,13 @@ class MiMaxIslandService : NotificationListenerService() {
             island?.findViewWithTag<TextView>("activity_icon")?.text = activityIcon(sbn)
             island?.findViewWithTag<TextView>("activity_eyebrow")?.text = activityEyebrow(sbn)
             island?.findViewWithTag<TextView>("activity_status")?.text = activityStatusLabel(sbn)
+            island?.findViewWithTag<android.widget.ProgressBar>("activity_progress")?.let { bar ->
+                val progress = sbn.notification.extras.getInt("android.progress", -1)
+                val maximum = sbn.notification.extras.getInt("android.progressMax", 0)
+                bar.max = maximum.coerceAtLeast(1)
+                bar.progress = progress.coerceIn(0, bar.max)
+                bar.visibility = if (maximum > 0 && progress >= 0) View.VISIBLE else View.GONE
+            }
             island?.findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                 if (activeEvents.size > 1) View.VISIBLE else View.GONE
             island?.findViewWithTag<TextView>("event_count")?.text = eventPositionLabel()
@@ -667,6 +674,17 @@ class MiMaxIslandService : NotificationListenerService() {
                 setPadding(0, dp(3), 0, 0)
             }, LinearLayout.LayoutParams(-1, -2))
         }
+        val progressExtras = sbn?.notification?.extras
+        val progressMaximum = progressExtras?.getInt("android.progressMax", 0) ?: 0
+        val progressValue = progressExtras?.getInt("android.progress", -1) ?: -1
+        content.addView(android.widget.ProgressBar(
+            this, null, android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            tag = "activity_progress"
+            max = progressMaximum.coerceAtLeast(1)
+            progress = progressValue.coerceIn(0, max)
+            visibility = if (progressMaximum > 0 && progressValue >= 0) View.VISIBLE else View.GONE
+        }, LinearLayout.LayoutParams(-1, dp(3)).apply { topMargin = dp(4) })
         root.addView(content, LinearLayout.LayoutParams(0, -2, 1f))
         if (style == IslandStyle.LTIN && !expanded) {
             root.findViewWithTag<TextView>("message")?.visibility = View.GONE
