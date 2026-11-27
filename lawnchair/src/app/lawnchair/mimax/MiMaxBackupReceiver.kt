@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.AtomicFile
 import java.io.File
-import java.io.FileOutputStream
 
 /** Performs scheduled backups off the main thread and retains the newest seven files. */
 class MiMaxBackupReceiver : BroadcastReceiver() {
@@ -33,14 +32,12 @@ class MiMaxBackupReceiver : BroadcastReceiver() {
                 val timestamp = System.currentTimeMillis()
                 val target = File(directory, "MiMax-Auto-$timestamp.json")
                 val atomicFile = AtomicFile(target)
-                var stream: FileOutputStream? = null
+                val stream = atomicFile.startWrite()
                 try {
-                    stream = atomicFile.startWrite()
                     stream.write(MiMaxBackupManager.export(appContext))
                     atomicFile.finishWrite(stream)
-                    stream = null
                 } catch (failure: Throwable) {
-                    stream?.let(atomicFile::failWrite)
+                    atomicFile.failWrite(stream)
                     throw failure
                 }
 
