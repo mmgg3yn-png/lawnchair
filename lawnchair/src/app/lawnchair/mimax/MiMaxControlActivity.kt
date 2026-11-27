@@ -422,6 +422,48 @@ class MiMaxControlActivity : Activity() {
             render()
         }
         root.addView(TextView(this).apply {
+            text = "استوديو الحركة والإيماءات"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        val gesturePrefs = PreferenceManager.getInstance(this)
+        addButton(
+            if (gesturePrefs.motionEnabled.get()) "الحركة بالمستشعر: مفعّلة"
+            else "الحركة بالمستشعر: متوقفة"
+        ) {
+            gesturePrefs.motionEnabled.set(!gesturePrefs.motionEnabled.get())
+            render()
+        }
+        addButton(
+            if (gesturePrefs.panToMoveEnabled.get()) "الإمالة لتحريك العناصر: مفعّلة"
+            else "الإمالة لتحريك العناصر: متوقفة"
+        ) {
+            gesturePrefs.panToMoveEnabled.set(!gesturePrefs.panToMoveEnabled.get())
+            render()
+        }
+        val gestureSensitivity = EditText(this).apply {
+            hint = "حساسية الإمالة من 0.1 إلى 1.0"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine(true)
+            setText("%.2f".format(Locale.US, gesturePrefs.panToMoveSensitivity.get()))
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0xFF9A9AA3.toInt())
+        }
+        root.addView(gestureSensitivity, LinearLayout.LayoutParams(-1, dp(50)).apply {
+            topMargin = dp(8)
+        })
+        addButton("حفظ حساسية الإمالة") {
+            val value = gestureSensitivity.text.toString().toFloatOrNull()
+            if (value == null || value !in 0.1f..1f) {
+                Toast.makeText(this, "أدخل قيمة بين 0.1 و1.0", Toast.LENGTH_LONG).show()
+            } else {
+                gesturePrefs.panToMoveSensitivity.set(value)
+                Toast.makeText(this, "تم حفظ حساسية الحركة", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        root.addView(TextView(this).apply {
             text = "الخصوصية والأداء"
             textSize = 18f
             setTextColor(0xFFFFFFFF.toInt())
