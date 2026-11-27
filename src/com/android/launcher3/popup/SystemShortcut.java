@@ -19,6 +19,8 @@ import android.os.Process;
 import android.os.UserHandle;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewParent;
+import android.widget.Toast;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -27,6 +29,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.AbstractFloatingView;
+import com.android.launcher3.CellLayout;
+import com.android.launcher3.Launcher;
+import com.android.launcher3.celllayout.CellLayoutLayoutParams;
+import com.android.launcher3.model.data.WorkspaceItemInfo;
+import com.android.launcher3.util.GridOccupancy;
 import com.android.launcher3.AbstractFloatingViewHelper;
 import com.android.launcher3.DropTargetHandler;
 import com.android.launcher3.Flags;
@@ -137,6 +144,79 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
     private static boolean isHomeLocked(ActivityContext context) {
         PreferenceManager2 prefs = PreferenceManager2.getInstance(context.asContext());
         return PreferenceCacheExtensionsKt.firstCached(prefs.getLockHomeScreen());
+    }
+
+    /** Mi_Max: multi-cell Super Icon sizing actions, available for desktop shortcuts only. */
+    public static final Factory<ActivityContext> MIMAX_SIZE_NORMAL =
+            (context, itemInfo, originalView) -> itemInfo.container
+                    == LauncherSettings.Favorites.CONTAINER_DESKTOP
+                    ? new MiMaxSuperIconSize(context, itemInfo, originalView, 1, 1,
+                            R.string.mimax_super_icon_normal) : null;
+    public static final Factory<ActivityContext> MIMAX_SIZE_WIDE =
+            (context, itemInfo, originalView) -> itemInfo.container
+                    == LauncherSettings.Favorites.CONTAINER_DESKTOP
+                    ? new MiMaxSuperIconSize(context, itemInfo, originalView, 2, 1,
+                            R.string.mimax_super_icon_wide) : null;
+    public static final Factory<ActivityContext> MIMAX_SIZE_TALL =
+            (context, itemInfo, originalView) -> itemInfo.container
+                    == LauncherSettings.Favorites.CONTAINER_DESKTOP
+                    ? new MiMaxSuperIconSize(context, itemInfo, originalView, 1, 2,
+                            R.string.mimax_super_icon_tall) : null;
+    public static final Factory<ActivityContext> MIMAX_SIZE_LARGE =
+            (context, itemInfo, originalView) -> itemInfo.container
+                    == LauncherSettings.Favorites.CONTAINER_DESKTOP
+                    ? new MiMaxSuperIconSize(context, itemInfo, originalView, 2, 2,
+                            R.string.mimax_super_icon_large) : null;
+
+    private static final class MiMaxSuperIconSize extends SystemShortcut<ActivityContext> {
+        private final int mSpanX;
+        private final int mSpanY;
+
+        MiMaxSuperIconSize(ActivityContext target, ItemInfo itemInfo, View originalView,
+                int spanX, int spanY, int labelResId) {
+            super(R.drawable.ic_widget, labelResId, target, itemInfo, originalView);
+            mSpanX = spanX;
+            mSpanY = spanY;
+        }
+
+        @Override
+        public void onClick(View view) {
+            AbstractFloatingView.closeAllOpenViews(mTarget);
+            if (!(mTarget instanceof Launcher launcher)
+                    || !(mItemInfo instanceof WorkspaceItemInfo)) {
+                return;
+            }
+            ViewParent parent = mOriginalView.getParent();
+            while (parent != null && !(parent instanceof CellLayout)) {
+                parent = parent.getParent();
+            }
+            if (!(parent instanceof CellLayout cellLayout)
+                    || !(mOriginalView.getLayoutParams() instanceof CellLayoutLayoutParams lp)) {
+                Toast.makeText(mTarget.asContext(),
+                        R.string.mimax_super_icon_resize_unavailable, Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            GridOccupancy occupancy = cellLayout.cloneGridOccupancy();
+            occupancy.markCells(lp.getCellX(), lp.getCellY(),
+                    lp.cellHSpan, lp.cellVSpan, false);
+            if (!occupancy.isRegionVacant(lp.getCellX(), lp.getCellY(), mSpanX, mSpanY)) {
+                Toast.makeText(mTarget.asContext(),
+                        R.string.mimax_super_icon_no_space, Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            cellLayout.markCellsAsUnoccupiedForView(mOriginalView);
+            lp.cellHSpan = mSpanX;
+            lp.cellVSpan = mSpanY;
+            lp.isLockedToGrid = true;
+            cellLayout.markCellsAsOccupiedForView(mOriginalView);
+            mOriginalView.requestLayout();
+            cellLayout.requestLayout();
+
+            launcher.getModelWriter().modifyItemInDatabase(mItemInfo, mItemInfo.container,
+                    mItemInfo.screenId, lp.getCellX(), lp.getCellY(), mSpanX, mSpanY);
+        }
     }
 
     public static final Factory<ActivityContext> WIDGETS = (context, itemInfo, originalView) -> {
