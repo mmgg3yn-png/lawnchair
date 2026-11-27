@@ -1,7 +1,10 @@
 package app.lawnchair.ui.preferences.destinations
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +20,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import app.lawnchair.mimax.IslandStyle
 import app.lawnchair.mimax.MiMaxIslandPreferences
 
@@ -33,6 +39,14 @@ fun MiMaxPreferences() {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(MiMaxIslandPreferences.enabled(context)) }
     var selected by remember { mutableStateOf(MiMaxIslandPreferences.style(context)) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            runCatching { MiMaxIslandPreferences.postTestNotification(context) }
+                .onFailure { Toast.makeText(context, "تعذر إرسال إشعار الاختبار: ${it.message}", Toast.LENGTH_LONG).show() }
+        }
+    }
     val overlayGranted = Settings.canDrawOverlays(context)
     val listenerGranted = runCatching {
         Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
@@ -45,7 +59,7 @@ fun MiMaxPreferences() {
     ) {
         Text("Me Island", style = MaterialTheme.typography.headlineMedium)
         Text(
-            "جزيرة إشعارات حقيقية تظهر فوق التطبيقات عند وصول نشاط مدعوم. تحتاج إلى الإذنين التاليين.",
+            "جزيرة إشعارات تظهر فوق التطبيقات. فعّل الإذنين ثم اضغط اختبار الجزيرة الآن للتأكد من أن خدمة الإشعارات والنافذة العائمة تعملان.",
             style = MaterialTheme.typography.bodyMedium,
         )
         Button(onClick = {
@@ -55,6 +69,18 @@ fun MiMaxPreferences() {
         }
         Button(onClick = { context.startActivity(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) {
             Text(if (listenerGranted) "إذن الإشعارات: مفعّل" else "منح إذن الوصول للإشعارات")
+        }
+        Button(onClick = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                runCatching { MiMaxIslandPreferences.postTestNotification(context) }
+                    .onFailure { Toast.makeText(context, "تعذر إرسال إشعار الاختبار: ${it.message}", Toast.LENGTH_LONG).show() }
+            }
+        }) {
+            Text("اختبار الجزيرة الآن")
         }
         RowSwitch(enabled = enabled, onChange = {
             enabled = it
