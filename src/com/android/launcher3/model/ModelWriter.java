@@ -96,6 +96,11 @@ public class ModelWriter {
         mUiExecutor = Executors.MAIN_EXECUTOR;
     }
 
+    /** Exposes the model database controller for atomic widget-stack persistence. */
+    public ModelDbController getModelDbController() {
+        return mModel.getModelDbController();
+    }
+
     /** Updates the location properties of the item */
     public void updateItemInfoProps(
             ItemInfo item, int container, int screenId, int cellX, int cellY) {
