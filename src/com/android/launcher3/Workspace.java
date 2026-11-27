@@ -2335,7 +2335,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     }
                     if (sourceIcon != null) {
                         sourceIcon.setVisibility(sourceFolder.id == merged.getChildFolderIds().get(0)
-                                ? View.VISIBLE : View.GONE);
+                                ? View.VISIBLE : View.INVISIBLE);
                     }
                     FolderIcon destinationIcon = findMiMaxFolderIcon(this,
                             destinationFolder.id);
@@ -2345,7 +2345,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     if (destinationIcon != null) {
                         destinationIcon.setVisibility(
                                 destinationFolder.id == merged.getChildFolderIds().get(0)
-                                        ? View.VISIBLE : View.GONE);
+                                        ? View.VISIBLE : View.INVISIBLE);
                     }
                 }
                 return true;
