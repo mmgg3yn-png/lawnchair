@@ -718,8 +718,8 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun activityEyebrow(sbn: StatusBarNotification?): String =
         when (sbn?.notification?.category) {
-            Notification.CATEGORY_CALL -> if (sbn.notification.extras
-                .getBoolean("android.showChronometer", false)) "CALL IN PROGRESS" else "INCOMING CALL"
+            Notification.CATEGORY_CALL -> if (sbn?.notification?.extras?.getBoolean("android.showChronometer", false) == true)
+                "CALL IN PROGRESS" else "INCOMING CALL"
             Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "LIVE TIMER"
             Notification.CATEGORY_NAVIGATION -> "LIVE NAVIGATION"
             else -> if (mediaController != null) "NOW PLAYING" else "LIVE ACTIVITY"
@@ -737,8 +737,8 @@ class MiMaxIslandService : NotificationListenerService() {
             ?: extras?.getCharSequence("android.summaryText"))?.toString()?.trim().orEmpty()
         if (sourceSubText.isNotBlank()) return sourceSubText.take(90)
         return when (sbn?.notification?.category) {
-            Notification.CATEGORY_CALL -> if (sbn.notification.extras
-                .getBoolean("android.showChronometer", false)) "مكالمة جارية" else "مكالمة واردة"
+            Notification.CATEGORY_CALL -> if (sbn?.notification?.extras?.getBoolean("android.showChronometer", false) == true)
+                "مكالمة جارية" else "مكالمة واردة"
             Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "المؤقت يعمل"
             Notification.CATEGORY_NAVIGATION -> "التنقل نشط"
             else -> if (mediaController != null) "تشغيل الوسائط" else "نشاط مباشر"
