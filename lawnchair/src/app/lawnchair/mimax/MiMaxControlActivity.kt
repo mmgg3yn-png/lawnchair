@@ -650,13 +650,13 @@ class MiMaxControlActivity : Activity() {
     private fun applyThemePreset(style: IslandStyle) {
         val (accent, background, radius, width, label) = when (style) {
             IslandStyle.HIS -> Quintuple(
-                0xFF8C9BFF.toInt(), 0xF0181D2B.toInt(), 22, 320, "HyperOS"
+                0xFF8EA8FF.toInt(), 0xF0181D2B.toInt(), 22, 320, "HyperOS"
             )
             IslandStyle.LTIN -> Quintuple(
-                0xFFFFFFFF.toInt(), 0xF0060608.toInt(), 28, 345, "iPhone"
+                0xFF79E6A5.toInt(), 0xF0000000.toInt(), 34, 345, "iPhone"
             )
             IslandStyle.COLOROS -> Quintuple(
-                0xFF52C7A5.toInt(), 0xF01B2228.toInt(), 24, 330, "ColorOS"
+                0xFF69D7C2.toInt(), 0xF026292D.toInt(), 18, 330, "ColorOS"
             )
         }
         getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
