@@ -701,7 +701,8 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         try {
             for (MiMaxFolderStackStore.Stack candidate :
                     new MiMaxFolderStackStore(getContext()).getAll()) {
-                if (candidate.getChildFolderIds().contains(mInfo.id)) {
+                if (!candidate.getChildFolderIds().isEmpty()
+                        && candidate.getChildFolderIds().get(0) == mInfo.id) {
                     stack = candidate;
                     break;
                 }
