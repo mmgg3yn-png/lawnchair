@@ -5,7 +5,6 @@
 package app.lawnchair.mimax
 
 import android.app.Notification
-import android.app.PendingIntent
 import android.content.ComponentName
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -170,7 +169,7 @@ class MiMaxIslandService : NotificationListenerService() {
             category == Notification.CATEGORY_NAVIGATION -> "NAVIGATION"
             category == Notification.CATEGORY_ALARM ||
                 category == Notification.CATEGORY_REMINDER -> "TIMER"
-            notification.flags and Notification.FLAG_ONGOING_EVENT != 0 &&
+            (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 &&
                 (text.contains("download") || text.contains("downloading") ||
                     text.contains("تنزيل") || text.contains("تحميل")) -> "DOWNLOAD"
             text.contains("stopwatch") || text.contains("timer") ||
