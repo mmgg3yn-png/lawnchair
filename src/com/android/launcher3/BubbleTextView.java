@@ -425,7 +425,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         setItemInfo(info);
         // Mi_Max: scale workspace icons according to their persisted multi-cell span.
         float superIconScale = info.container == LauncherSettings.Favorites.CONTAINER_DESKTOP
-                ? Math.min(1.8f, 1f + 0.35f * (Math.max(info.spanX, info.spanY) - 1))
+                ? Math.min(1.8f, 1f + 0.35f * (info.spanX + info.spanY - 2))
                 : 1f;
         setSuperIconScale(superIconScale);
 
