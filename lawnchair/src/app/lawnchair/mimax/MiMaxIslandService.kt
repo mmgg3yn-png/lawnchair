@@ -940,11 +940,9 @@ class MiMaxIslandService : NotificationListenerService() {
         runCatching { windowManager.addView(panel, params) }
             .onSuccess {
                 floatingPanel = panel
-                MiMaxCrashRecovery.recordSuccess(this)
             }
-            .onFailure { failure ->
+            .onFailure {
                 floatingPanel = null
-                if (MiMaxCrashRecovery.recordFailure(this, failure)) removeIsland()
             }
     }
 
