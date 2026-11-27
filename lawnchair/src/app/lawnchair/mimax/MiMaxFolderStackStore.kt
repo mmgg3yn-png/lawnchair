@@ -231,6 +231,32 @@ class MiMaxFolderStackStore(context: Context) {
         return updated
     }
 
+    /** Moves a folder within a stack without changing its identity or selection. */
+    @Synchronized
+    fun moveFolder(stackId: Long, folderId: Long, offset: Int): Stack? {
+        if (offset == 0) return getAll().firstOrNull { it.id == stackId }
+        val stacks = getAll().toMutableList()
+        val position = stacks.indexOfFirst { it.id == stackId }
+        if (position < 0) return null
+        val current = stacks[position]
+        val from = current.childFolderIds.indexOf(folderId)
+        if (from < 0) return null
+        val to = (from + offset.coerceIn(-1, 1))
+            .coerceIn(0, current.childFolderIds.lastIndex)
+        if (from == to) return current
+        val reordered = current.childFolderIds.toMutableList()
+        val moved = reordered.removeAt(from)
+        reordered.add(to, moved)
+        val selectedId = current.selectedFolderId()
+        val updated = current.copy(
+            childFolderIds = reordered,
+            selectedIndex = reordered.indexOf(selectedId).coerceAtLeast(0)
+        )
+        stacks[position] = updated
+        save(stacks)
+        return updated
+    }
+
     @Synchronized
     fun select(stackId: Long, index: Int): Stack? {
         val stacks = getAll().toMutableList()
