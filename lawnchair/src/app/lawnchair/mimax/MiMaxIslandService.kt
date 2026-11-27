@@ -98,7 +98,10 @@ class MiMaxIslandService : NotificationListenerService() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                y = dp(8)
+                x = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                    .getInt("island_position_x", 0)
+                y = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                    .getInt("island_position_y", dp(8)).coerceAtLeast(dp(4))
             }
             runCatching { wm?.addView(island, params) }.onFailure { island = null }
         } else {
@@ -154,13 +157,55 @@ class MiMaxIslandService : NotificationListenerService() {
             isClickable = true
             contentDescription = "Me Island: $title"
             var downX = 0f
+            var downY = 0f
+            var startX = 0
+            var startY = 0
+            var dragging = false
             setOnTouchListener { view, event ->
                 when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> { downX = event.rawX; true }
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        downX = event.rawX
+                        downY = event.rawY
+                        val params = view.layoutParams as? WindowManager.LayoutParams
+                        startX = params?.x ?: 0
+                        startY = params?.y ?: dp(8)
+                        dragging = false
+                        true
+                    }
+                    android.view.MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (!dragging && (kotlin.math.abs(dx) > dp(10) || kotlin.math.abs(dy) > dp(10))) {
+                            dragging = true
+                        }
+                        if (dragging) {
+                            (view.layoutParams as? WindowManager.LayoutParams)?.let { params ->
+                                params.x = startX + dx.toInt()
+                                params.y = (startY + dy.toInt()).coerceAtLeast(dp(4))
+                                runCatching { wm?.updateViewLayout(view, params) }
+                            }
+                        }
+                        true
+                    }
                     android.view.MotionEvent.ACTION_UP -> {
-                        val delta = event.rawX - downX
-                        if (kotlin.math.abs(delta) > dp(28)) cycleEvent(if (delta < 0) 1 else -1)
-                        else view.performClick()
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (dragging) {
+                            (view.layoutParams as? WindowManager.LayoutParams)?.let { params ->
+                                getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE).edit()
+                                    .putInt("island_position_x", params.x)
+                                    .putInt("island_position_y", params.y)
+                                    .apply()
+                            }
+                        } else if (kotlin.math.abs(dx) > dp(28) && kotlin.math.abs(dy) < dp(24)) {
+                            cycleEvent(if (dx < 0) 1 else -1)
+                        } else {
+                            view.performClick()
+                        }
+                        true
+                    }
+                    android.view.MotionEvent.ACTION_CANCEL -> {
+                        dragging = false
                         true
                     }
                     else -> true
