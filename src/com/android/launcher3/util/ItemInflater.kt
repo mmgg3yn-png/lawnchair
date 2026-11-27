@@ -18,11 +18,15 @@ package com.android.launcher3.util
 
 import android.appwidget.AppWidgetHostView
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.view.LayoutInflater
 import android.view.View
 import android.view.View.OnClickListener
 import android.view.View.OnFocusChangeListener
 import android.view.ViewGroup
+import app.lawnchair.widget.WidgetStackInfo
+import app.lawnchair.widget.WidgetStackManager
+import app.lawnchair.widget.WidgetStackView
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherSettings.Favorites
@@ -52,6 +56,20 @@ class ItemInflater<T>(
 
     private val widgetInflater =
         WidgetInflater(context, LauncherAppState.getInstance(context).isSafeModeEnabled)
+
+    // Cache stack metadata while a workspace batch is inflated. A stack is inflated only once.
+    private val widgetStackLoadCache = mutableMapOf<Long, WidgetStackInfo?>()
+
+    fun clearWidgetStackLoadCache() {
+        widgetStackLoadCache.clear()
+    }
+
+    private fun loadStackCached(db: SQLiteDatabase, stackId: Long): WidgetStackInfo? {
+        if (widgetStackLoadCache.containsKey(stackId)) return widgetStackLoadCache[stackId]
+        val value = WidgetStackManager.loadStack(db, stackId)
+        widgetStackLoadCache[stackId] = value
+        return value
+    }
 
     @JvmOverloads
     fun inflateItem(
@@ -126,6 +144,26 @@ class ItemInflater<T>(
     private fun inflateAppWidget(item: LauncherAppWidgetInfo, writer: ModelWriter): View? {
         TraceHelper.INSTANCE.beginSection("BIND_WIDGET_id=" + item.appWidgetId)
         try {
+            val stackId = item.widgetStackId
+            if (stackId != null) {
+                val db = writer.getModelDbController().db
+                val stackInfo = loadStackCached(db, stackId)
+                if (stackInfo != null && stackInfo.widgetIds.isNotEmpty()) {
+                    if (stackInfo.widgetIds.firstOrNull() == item.appWidgetId) {
+                        return WidgetStackView(context).apply {
+                            setStackInfo(stackInfo)
+                            tag = item
+                            isFocusable = true
+                            onFocusChangeListener = focusListener
+                        }
+                    }
+                    return null
+                }
+                if (stackInfo == null) {
+                    item.widgetStackId = null
+                    writer.updateItemInDatabase(item)
+                }
+            }
             val (type, reason, _, isUpdate, widgetInfo) = widgetInflater.inflateAppWidget(item)
             if (type == WidgetInflater.TYPE_DELETE) {
                 writer.deleteItemFromDatabase(item, reason)
