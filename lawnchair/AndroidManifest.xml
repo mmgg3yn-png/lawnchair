@@ -20,6 +20,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -206,6 +207,16 @@
             android:exported="false"
             android:process=":bugReport"
             android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name="app.lawnchair.mimax.MiMaxBackupReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="app.lawnchair.mimax.ACTION_DAILY_BACKUP" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name="app.lawnchair.smartspace.SmartspaceAppWidgetProvider"
