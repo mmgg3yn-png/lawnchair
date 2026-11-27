@@ -299,11 +299,8 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                     .filter(candidate -> candidate.getChildFolderIds().contains(folderInfo.id))
                     .findFirst().orElse(null);
             if (stack != null && stack.getChildFolderIds().size() > 1) {
-                if (stack.getChildFolderIds().get(0) != folderInfo.id) {
-                    icon.setVisibility(View.INVISIBLE);
-                } else if (icon.mFolderName != null) {
-                    icon.mFolderName.setText(stack.getTitle());
-                }
+                icon.refreshMiMaxStackPresentation(
+                        stack.getTitle(), stack.getChildFolderIds().get(0) == folderInfo.id);
             }
         } catch (RuntimeException ignored) {
             // A persistence read failure must never prevent normal folder binding.
@@ -446,12 +443,8 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
             }
             boolean isAnchor = owner == null || owner.getChildFolderIds().size() < 2
                     || owner.getChildFolderIds().get(0) == folderId;
-            icon.setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
-            if (icon.mFolderName != null) {
-                icon.mFolderName.setText(isAnchor && owner != null
-                        ? owner.getTitle() : icon.mInfo.title);
-            }
-            icon.invalidate();
+            icon.refreshMiMaxStackPresentation(
+                    owner == null ? null : owner.getTitle(), isAnchor);
         }
     }
 
@@ -477,6 +470,17 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     public void animateBgShadowAndStroke() {
         mBackground.fadeInBackgroundShadow();
         mBackground.animateBackgroundStroke();
+    }
+
+    /** Refreshes the visual anchor/child state after a stack model change. */
+    public void refreshMiMaxStackPresentation(
+            @Nullable String stackTitle, boolean isAnchor) {
+        setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
+        if (mFolderName != null && mInfo != null) {
+            mFolderName.setText(isAnchor && stackTitle != null
+                    ? stackTitle : mInfo.title);
+        }
+        invalidate();
     }
 
     public BubbleTextView getFolderName() {
