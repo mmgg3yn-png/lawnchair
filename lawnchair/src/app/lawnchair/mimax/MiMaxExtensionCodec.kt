@@ -104,6 +104,9 @@ object MiMaxExtensionCodec {
         require(definition.description.length <= 240)
 
         val theme = definition.theme
+        require(theme.name.isNotBlank() && theme.name.length <= 64) {
+            "اسم الثيم داخل الإضافة غير صالح"
+        }
         require(theme.cornerRadiusDp in 8..48 && theme.widthDp in 180..360)
         val themeJson = JSONObject()
             .put("name", theme.name)
