@@ -101,6 +101,10 @@ class MiMaxIslandService : NotificationListenerService() {
                 }
                 return
             }
+            if (intent.action == MiMaxIslandPreferences.ACTION_CALL_MONITOR_PERMISSION_UPDATED) {
+                registerCallStateMonitor()
+                return
+            }
             if (intent.action == MiMaxIslandPreferences.ACTION_TIMER_UPDATED) {
                 main.removeCallbacks(timerTicker)
                 timerTicker.run()
@@ -163,6 +167,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 addAction(Intent.ACTION_BATTERY_CHANGED)
                 addAction(Intent.ACTION_TIME_TICK)
                 addAction(MiMaxIslandPreferences.ACTION_TIMER_UPDATED)
+                addAction(MiMaxIslandPreferences.ACTION_CALL_MONITOR_PERMISSION_UPDATED)
                 addAction(MiMaxWeatherProvider.ACTION_WEATHER_UPDATED)
                 addAction(MiMaxIslandPreferences.ACTION_THEME_UPDATED)
                 addAction("app.lawnchair.mimax.ACTION_FOCUS_MODE_CHANGED")
@@ -1229,6 +1234,7 @@ enum class IslandStyle { HIS, LTIN, COLOROS }
 
 object MiMaxIslandPreferences {
     const val ACTION_TIMER_UPDATED = "app.lawnchair.mimax.TIMER_UPDATED"
+    const val ACTION_CALL_MONITOR_PERMISSION_UPDATED = "app.lawnchair.mimax.CALL_MONITOR_PERMISSION_UPDATED"
     const val ACTION_THEME_UPDATED = "app.lawnchair.mimax.THEME_UPDATED"
     private const val PREFS = "mimax_launcher"
     private const val TEST_CHANNEL = "mimax_island_test"
