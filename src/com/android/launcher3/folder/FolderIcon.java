@@ -44,6 +44,7 @@ import android.util.Property;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.EditText;
 import android.view.ViewDebug;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -255,6 +256,15 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                         }
                         dialog.dismiss();
                     })
+                    .setPositiveButton("إدارة", (dialog, which) -> {
+                        showMiMaxStackManagement(
+                                (Launcher) activity,
+                                clicked,
+                                stack,
+                                store,
+                                folderInfo.id
+                        );
+                    })
                     .setNeutralButton("فك التكديس", (dialog, which) -> {
                         if (store.delete(stack.getId())) {
                             View workspace = ((Launcher) activity).getWorkspace();
@@ -306,6 +316,123 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         icon.updatePreviewItems(false);
 
         return icon;
+    }
+
+    private static void showMiMaxStackManagement(
+            Launcher launcher,
+            View anchorView,
+            MiMaxFolderStackStore.Stack stack,
+            MiMaxFolderStackStore store,
+            long currentFolderId) {
+        CharSequence[] options = new CharSequence[] {
+                "إعادة تسمية التكديس",
+                "إضافة مجلد موجود",
+                "إزالة هذا المجلد من التكديس"
+        };
+        new AlertDialog.Builder(anchorView.getContext())
+                .setTitle("إدارة " + stack.getTitle())
+                .setItems(options, (dialog, which) -> {
+                    View workspace = launcher.getWorkspace();
+                    if (which == 0) {
+                        EditText name = new EditText(anchorView.getContext());
+                        name.setSingleLine(true);
+                        name.setText(stack.getTitle());
+                        new AlertDialog.Builder(anchorView.getContext())
+                                .setTitle("اسم التكديس")
+                                .setView(name)
+                                .setPositiveButton("حفظ", (renameDialog, result) -> {
+                                    String value = name.getText().toString().trim();
+                                    if (store.rename(stack.getId(), value)) {
+                                        syncMiMaxStackIcons(workspace, store);
+                                    }
+                                })
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show();
+                    } else if (which == 1) {
+                        ArrayList<FolderIcon> allFolders = new ArrayList<>();
+                        collectMiMaxFolderIcons(workspace, allFolders);
+                        ArrayList<FolderIcon> candidates = new ArrayList<>();
+                        ArrayList<CharSequence> candidateLabels = new ArrayList<>();
+                        for (FolderIcon icon : allFolders) {
+                            if (icon.mInfo == null ||
+                                    stack.getChildFolderIds().contains(icon.mInfo.id)) {
+                                continue;
+                            }
+                            candidates.add(icon);
+                            candidateLabels.add(icon.mInfo.title == null
+                                    ? "Folder" : icon.mInfo.title);
+                        }
+                        if (candidates.isEmpty()) {
+                            android.widget.Toast.makeText(
+                                    anchorView.getContext(),
+                                    "لا توجد مجلدات أخرى لإضافتها",
+                                    android.widget.Toast.LENGTH_SHORT
+                            ).show();
+                            return;
+                        }
+                        new AlertDialog.Builder(anchorView.getContext())
+                                .setTitle("إضافة مجلد إلى التكديس")
+                                .setItems(candidateLabels.toArray(new CharSequence[0]),
+                                        (pickDialog, index) -> {
+                                            FolderIcon selected = candidates.get(index);
+                                            if (selected.mInfo != null &&
+                                                    store.addFolder(stack.getId(), selected.mInfo.id)) {
+                                                syncMiMaxStackIcons(workspace, store);
+                                                android.widget.Toast.makeText(
+                                                        anchorView.getContext(),
+                                                        "تمت إضافة المجلد إلى التكديس",
+                                                        android.widget.Toast.LENGTH_SHORT
+                                                ).show();
+                                            }
+                                        })
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show();
+                    } else if (which == 2) {
+                        store.removeFolder(stack.getId(), currentFolderId);
+                        syncMiMaxStackIcons(workspace, store);
+                        android.widget.Toast.makeText(
+                                anchorView.getContext(),
+                                "تمت إزالة المجلد من التكديس",
+                                android.widget.Toast.LENGTH_SHORT
+                        ).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private static void collectMiMaxFolderIcons(View root, List<FolderIcon> output) {
+        if (root instanceof FolderIcon) {
+            FolderIcon icon = (FolderIcon) root;
+            if (icon.mInfo != null) output.add(icon);
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                collectMiMaxFolderIcons(group.getChildAt(i), output);
+            }
+        }
+    }
+
+    /** Re-applies anchor/child visibility after an add, remove, rename, or unstack. */
+    private static void syncMiMaxStackIcons(View workspace, MiMaxFolderStackStore store) {
+        ArrayList<FolderIcon> folders = new ArrayList<>();
+        collectMiMaxFolderIcons(workspace, folders);
+        List<MiMaxFolderStackStore.Stack> stacks = store.getAll();
+        for (FolderIcon icon : folders) {
+            long folderId = icon.mInfo.id;
+            MiMaxFolderStackStore.Stack owner = null;
+            for (MiMaxFolderStackStore.Stack candidate : stacks) {
+                if (candidate.getChildFolderIds().contains(folderId)) {
+                    owner = candidate;
+                    break;
+                }
+            }
+            boolean isAnchor = owner == null || owner.getChildFolderIds().size() < 2
+                    || owner.getChildFolderIds().get(0) == folderId;
+            icon.setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
+            icon.invalidate();
+        }
     }
 
     /**
