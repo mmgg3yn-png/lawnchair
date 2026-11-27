@@ -2274,6 +2274,25 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         return false;
     }
 
+    @Nullable
+    private static FolderIcon findMiMaxFolderIcon(View root, long folderId) {
+        if (root instanceof FolderIcon) {
+            FolderIcon icon = (FolderIcon) root;
+            if (icon.getTag() instanceof FolderInfo
+                    && ((FolderInfo) icon.getTag()).id == folderId) {
+                return icon;
+            }
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                FolderIcon found = findMiMaxFolderIcon(group.getChildAt(i), folderId);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
     boolean createUserFolderIfNecessary(View newView, int container, CellLayout target,
             int[] targetCell, float distance, boolean external, DragObject d) {
         if (distance > target.getFolderCreationRadius(targetCell)) return false;
@@ -2298,11 +2317,28 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             FolderInfo sourceFolder = (FolderInfo) newView.getTag();
             if (destinationFolder.id != sourceFolder.id) {
                 MiMaxFolderStackStore store = new MiMaxFolderStackStore(getContext());
-                store.mergeFolders(
+                MiMaxFolderStackStore.Stack merged = store.mergeFolders(
                         destinationFolder.title == null ? "Folder Stack"
                                 : destinationFolder.title.toString(),
                         destinationFolder.id,
                         sourceFolder.id);
+                if (merged != null) {
+                    FolderIcon anchorIcon = findMiMaxFolderIcon(this,
+                            merged.getChildFolderIds().get(0));
+                    if (anchorIcon != null) {
+                        anchorIcon.setVisibility(View.VISIBLE);
+                        anchorIcon.invalidate();
+                    }
+                    FolderIcon sourceIcon = findMiMaxFolderIcon(this, sourceFolder.id);
+                    if (sourceIcon != null && sourceIcon != anchorIcon) {
+                        sourceIcon.setVisibility(View.GONE);
+                    }
+                    FolderIcon destinationIcon = findMiMaxFolderIcon(this,
+                            destinationFolder.id);
+                    if (destinationIcon != null && destinationIcon != anchorIcon) {
+                        destinationIcon.setVisibility(View.GONE);
+                    }
+                }
                 return true;
             }
         }
