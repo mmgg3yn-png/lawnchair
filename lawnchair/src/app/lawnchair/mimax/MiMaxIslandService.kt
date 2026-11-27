@@ -409,7 +409,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 findViewWithTag<LinearLayout>("media_controls")?.visibility =
                     if (expanded && mediaController != null) View.VISIBLE else View.GONE
                 findViewWithTag<LinearLayout>("notification_actions")?.visibility =
-                    if (expanded && findViewWithTag<LinearLayout>("notification_actions")?.childCount ?: 0 > 0) View.VISIBLE else View.GONE
+                    if (expanded && (findViewWithTag<LinearLayout>("notification_actions")?.childCount ?: 0) > 0) View.VISIBLE else View.GONE
                 findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                     if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
                 updateIslandSize(this)
@@ -459,7 +459,7 @@ class MiMaxIslandService : NotificationListenerService() {
             tag = "event_switcher"
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            visibility = if (activeEvents.size > 1) View.VISIBLE else View.GONE
+            visibility = if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
         }
         fun eventButton(label: String, direction: Int) = TextView(this).apply {
             text = label
