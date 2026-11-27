@@ -176,11 +176,16 @@ class MiMaxIslandService : NotificationListenerService() {
             ?.takeIf { it.isNotBlank() } ?: notificationTitle).let { base ->
                 if (eventPrefix.isBlank()) base else "$eventPrefix • $base"
             }
-        val message = if (mediaMetadata != null) {
+        val baseMessage = if (mediaMetadata != null) {
             listOfNotNull(mediaMetadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
                 mediaMetadata.getString(MediaMetadata.METADATA_KEY_ALBUM)).joinToString(" • ")
                 .ifBlank { notificationMessage }
         } else notificationMessage
+        val progress = extras.getInt("android.progress", -1)
+        val progressMax = extras.getInt("android.progressMax", 0)
+        val message = if (eventPrefix == "DOWNLOAD" && progress >= 0 && progressMax > 0) {
+            "$baseMessage • ${(progress * 100 / progressMax).coerceIn(0, 100)}%"
+        } else baseMessage
         lastMessage = message
         floatingPanel?.findViewWithTag<TextView>("float_title")?.text = title
         floatingPanel?.findViewWithTag<TextView>("float_message")?.text = displayMessage()
