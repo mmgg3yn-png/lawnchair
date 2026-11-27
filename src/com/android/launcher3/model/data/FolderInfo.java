@@ -126,6 +126,9 @@ public class FolderInfo extends CollectionInfo {
                 workspaceItemInfos.add(wii);
             } else if (item instanceof AppPairInfo api) {
                 workspaceItemInfos.addAll(api.getAppContents());
+            } else if (item instanceof FolderInfo nestedFolder) {
+                // Keep app-content queries useful for nested folder stacks.
+                workspaceItemInfos.addAll(nestedFolder.getAppContents());
             }
         }
         return workspaceItemInfos;
@@ -321,6 +324,8 @@ public class FolderInfo extends CollectionInfo {
     public static boolean willAcceptItemType(int itemType) {
         return itemType == ITEM_TYPE_APPLICATION
                 || itemType == ITEM_TYPE_DEEP_SHORTCUT
-                || itemType == ITEM_TYPE_APP_PAIR;
+                || itemType == ITEM_TYPE_APP_PAIR
+                // Mi_Max: allow one folder to be placed inside another as a folder stack member.
+                || itemType == LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
     }
 }
