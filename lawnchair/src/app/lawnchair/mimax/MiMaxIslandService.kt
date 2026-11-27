@@ -108,12 +108,18 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun makeView(title: String, message: String): LinearLayout {
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation = if (style == IslandStyle.COLOROS) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(18), dp(9), dp(18), dp(9))
+            setPadding(
+                dp(if (style == IslandStyle.LTIN) 20 else 14),
+                dp(if (style == IslandStyle.HIS) 10 else 8),
+                dp(if (style == IslandStyle.LTIN) 20 else 14),
+                dp(if (style == IslandStyle.HIS) 10 else 8),
+            )
             background = islandBackground()
-            elevation = dp(12).toFloat()
+            elevation = dp(14).toFloat()
             isClickable = true
+            contentDescription = "Me Island: $title"
             var downX = 0f
             setOnTouchListener { view, event ->
                 when (event.action) {
@@ -130,33 +136,76 @@ class MiMaxIslandService : NotificationListenerService() {
             setOnClickListener {
                 expanded = !expanded
                 findViewWithTag<TextView>("message")?.visibility =
-                    if (expanded && message.isNotBlank()) View.VISIBLE else View.GONE
-                val lp = layoutParams as? WindowManager.LayoutParams
-                lp?.width = dp(if (expanded) 320 else 220)
-                lp?.height = dp(if (expanded) 92 else 48)
-                lp?.let { runCatching { wm?.updateViewLayout(this, it) } }
+                    if (expanded && findViewWithTag<TextView>("message")?.text?.isNotBlank() == true) View.VISIBLE else View.GONE
+                updateIslandSize(this)
                 animate().scaleX(if (expanded) 1.025f else 1f)
                     .scaleY(if (expanded) 1.025f else 1f).setDuration(180).start()
             }
         }
-        root.addView(TextView(this).apply {
+
+        if (style == IslandStyle.COLOROS) {
+            val accent = View(this).apply {
+                background = GradientDrawable().apply {
+                    setColor(0xFF8C9BFF.toInt())
+                    cornerRadius = dp(4).toFloat()
+                }
+            }
+            root.addView(accent, LinearLayout.LayoutParams(dp(4), -1).apply {
+                marginEnd = dp(10)
+            })
+        }
+
+        val content = if (style == IslandStyle.COLOROS) {
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+        } else root
+
+        if (style == IslandStyle.HIS) {
+            content.addView(TextView(this).apply {
+                text = "●  LIVE ACTIVITY"
+                setTextColor(0xFF9EB6FF.toInt())
+                textSize = 8f
+                letterSpacing = 0.08f
+                gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(-1, -2))
+        } else if (style == IslandStyle.LTIN) {
+            content.addView(TextView(this).apply {
+                text = "●"
+                setTextColor(0xFF7DDBA5.toInt())
+                textSize = 7f
+                gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(-1, dp(8)))
+        }
+
+        content.addView(TextView(this).apply {
             tag = "title"
             text = title
             setTextColor(Color.WHITE)
-            textSize = 12f
+            textSize = when (style) {
+                IslandStyle.HIS -> 12f
+                IslandStyle.LTIN -> 13f
+                IslandStyle.COLOROS -> 13f
+            }
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             maxLines = 1
-            gravity = Gravity.CENTER
+            gravity = if (style == IslandStyle.COLOROS) Gravity.START else Gravity.CENTER
         }, LinearLayout.LayoutParams(-1, -2))
-        root.addView(TextView(this).apply {
+
+        content.addView(TextView(this).apply {
             tag = "message"
             text = message
-            setTextColor(0xFFE6E6E6.toInt())
+            setTextColor(if (style == IslandStyle.COLOROS) 0xFFB9C0D4.toInt() else 0xFFE6E6E6.toInt())
             textSize = 11f
             maxLines = 2
-            gravity = Gravity.CENTER
+            gravity = if (style == IslandStyle.COLOROS) Gravity.START else Gravity.CENTER
             visibility = View.GONE
         }, LinearLayout.LayoutParams(-1, -2))
+
+        if (content !== root) {
+            root.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
+        }
         root.alpha = 0f
         root.scaleX = .82f
         root.scaleY = .82f
@@ -164,18 +213,34 @@ class MiMaxIslandService : NotificationListenerService() {
         return root
     }
 
+    private fun updateIslandSize(view: View) {
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        params.width = dp(if (expanded) 320 else 220)
+        params.height = dp(when {
+            expanded -> if (style == IslandStyle.COLOROS) 104 else 92
+            style == IslandStyle.HIS -> 58
+            style == IslandStyle.LTIN -> 48
+            else -> 54
+        })
+        runCatching { wm?.updateViewLayout(view, params) }
+    }
+
     private fun islandBackground() = GradientDrawable().apply {
         setColor(when (style) {
-            IslandStyle.HIS -> 0xF0181A20.toInt()
-            IslandStyle.LTIN -> 0xF008080A.toInt()
+            IslandStyle.HIS -> 0xF0181D2B.toInt()
+            IslandStyle.LTIN -> 0xF0060608.toInt()
             IslandStyle.COLOROS -> 0xF0262730.toInt()
         })
         cornerRadius = dp(when (style) {
-            IslandStyle.HIS -> 30
+            IslandStyle.HIS -> 22
             IslandStyle.LTIN -> 36
-            IslandStyle.COLOROS -> 18
+            IslandStyle.COLOROS -> 16
         }).toFloat()
-        setStroke(dp(1), if (style == IslandStyle.COLOROS) 0x668C9BFF else 0x44FFFFFF)
+        when (style) {
+            IslandStyle.HIS -> setStroke(dp(1), 0x668DAEFF)
+            IslandStyle.LTIN -> setStroke(dp(1), 0x55FFFFFF)
+            IslandStyle.COLOROS -> setStroke(dp(1), 0x778C9BFF)
+        }
     }
 
     private fun removeIsland() {
