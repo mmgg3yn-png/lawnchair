@@ -224,7 +224,7 @@ class MiMaxIslandService : NotificationListenerService() {
 
         main.removeCallbacks(dismiss)
         if (island == null) {
-            val islandView = makeView(title, message)
+            val islandView = makeView(title)
             island = islandView
             val params = WindowManager.LayoutParams(
                 dp(when (style) { IslandStyle.HIS -> 208; IslandStyle.LTIN -> 126; IslandStyle.COLOROS -> 224 }),
@@ -264,7 +264,7 @@ class MiMaxIslandService : NotificationListenerService() {
             island?.findViewWithTag<TextView>("title")?.text = title
             island?.findViewWithTag<TextView>("activity_icon")?.apply {
                 text = if (style == IslandStyle.LTIN && mediaArtwork() != null) "" else activityIcon(sbn)
-                background = activityIconBackground(sbn)
+                background = activityIconBackground()
             }
             island?.findViewWithTag<TextView>("activity_eyebrow")?.text = activityEyebrow(sbn)
             island?.findViewWithTag<TextView>("activity_status")?.text = activityStatusLabel(sbn)
@@ -441,7 +441,7 @@ class MiMaxIslandService : NotificationListenerService() {
         show(items[next])
     }
 
-    private fun makeView(title: String, message: String): LinearLayout {
+    private fun makeView(title: String): LinearLayout {
         val sbn = activeEvents[activeKey]
         val accent = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
             .getInt("mt1_accent_color", when (style) {
@@ -714,7 +714,7 @@ class MiMaxIslandService : NotificationListenerService() {
             ?: mediaController?.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
     }
 
-    private fun activityIconBackground(sbn: StatusBarNotification?): android.graphics.drawable.Drawable {
+    private fun activityIconBackground(): android.graphics.drawable.Drawable {
         val art = if (style == IslandStyle.LTIN) mediaArtwork() else null
         if (art != null) return android.graphics.drawable.BitmapDrawable(resources, art)
         val accent = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
@@ -794,7 +794,7 @@ class MiMaxIslandService : NotificationListenerService() {
         if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 .getBoolean("focus_mode_enabled", false)) return
         style = MiMaxIslandPreferences.style(this)
-        val view = makeView("Timer", displayMessage())
+        val view = makeView("Timer")
         island = view
         val params = WindowManager.LayoutParams(
             dp(when (style) {
