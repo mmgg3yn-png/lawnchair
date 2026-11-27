@@ -5,6 +5,7 @@
 package app.lawnchair.mimax
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -106,8 +107,11 @@ class MiMaxIslandService : NotificationListenerService() {
         val notificationMessage = (extras.getCharSequence("android.text")
             ?: extras.getCharSequence("android.bigText"))?.toString()?.take(180).orEmpty()
         val mediaMetadata = mediaController?.metadata
-        val title = mediaMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
-            ?.takeIf { it.isNotBlank() } ?: notificationTitle
+        val eventPrefix = eventPrefix(sbn)
+        val title = (mediaMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
+            ?.takeIf { it.isNotBlank() } ?: notificationTitle).let { base ->
+                if (eventPrefix.isBlank()) base else "$eventPrefix • $base"
+            }
         val message = if (mediaMetadata != null) {
             listOfNotNull(mediaMetadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
                 mediaMetadata.getString(MediaMetadata.METADATA_KEY_ALBUM)).joinToString(" • ")
@@ -147,8 +151,40 @@ class MiMaxIslandService : NotificationListenerService() {
             island?.background = islandBackground()
             island?.let { updateIslandSize(it) }
         }
-        if (!sbn.isOngoing && sbn.notification.category != "call" &&
-            sbn.notification.category != "navigation") main.postDelayed(dismiss, 6500L)
+        if (!isPersistentActivity(sbn)) main.postDelayed(dismiss, 6500L)
+    }
+
+    private fun eventPrefix(sbn: StatusBarNotification): String {
+        val notification = sbn.notification
+        val category = notification.category.orEmpty()
+        val extras = notification.extras
+        val text = buildString {
+            append(extras.getCharSequence("android.title") ?: "")
+            append(' ')
+            append(extras.getCharSequence("android.text") ?: "")
+            append(' ')
+            append(extras.getCharSequence("android.subText") ?: "")
+        }.lowercase()
+        return when {
+            category == Notification.CATEGORY_CALL -> "CALL"
+            category == Notification.CATEGORY_NAVIGATION -> "NAVIGATION"
+            category == Notification.CATEGORY_ALARM ||
+                category == Notification.CATEGORY_REMINDER -> "TIMER"
+            notification.flags and Notification.FLAG_ONGOING_EVENT != 0 &&
+                (text.contains("download") || text.contains("downloading") ||
+                    text.contains("تنزيل") || text.contains("تحميل")) -> "DOWNLOAD"
+            text.contains("stopwatch") || text.contains("timer") ||
+                text.contains("مؤقت") || text.contains("ساعة الإيقاف") -> "TIMER"
+            else -> ""
+        }
+    }
+
+    private fun isPersistentActivity(sbn: StatusBarNotification): Boolean {
+        val category = sbn.notification.category
+        return sbn.isOngoing || category == Notification.CATEGORY_CALL ||
+            category == Notification.CATEGORY_NAVIGATION ||
+            category == Notification.CATEGORY_ALARM ||
+            category == Notification.CATEGORY_REMINDER
     }
 
     private fun displayMessage(): String =
@@ -243,6 +279,11 @@ class MiMaxIslandService : NotificationListenerService() {
                     }
                     else -> true
                 }
+            }
+            setOnLongClickListener {
+                val current = activeEvents[activeKey]
+                runCatching { current?.notification?.contentIntent?.send() }
+                true
             }
             setOnClickListener {
                 expanded = !expanded
