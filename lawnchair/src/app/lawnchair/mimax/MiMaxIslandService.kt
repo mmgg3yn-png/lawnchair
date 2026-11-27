@@ -52,6 +52,13 @@ class MiMaxIslandService : NotificationListenerService() {
     private var batteryStatusText = ""
     private var clockStatusText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
     private var timerStatusText = ""
+    private val notificationTicker = object : Runnable {
+        override fun run() {
+            updateActivityMessages()
+            val current = activeEvents[activeKey]
+            if (current != null && hasSystemChronometer(current)) main.postDelayed(this, 1000L)
+        }
+    }
     private val timerTicker = object : Runnable {
         override fun run() {
             val end = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
@@ -211,6 +218,8 @@ class MiMaxIslandService : NotificationListenerService() {
             "$baseMessage • ${(progress * 100 / progressMax).coerceIn(0, 100)}%"
         } else baseMessage
         lastMessage = message
+        main.removeCallbacks(notificationTicker)
+        if (hasSystemChronometer(sbn)) main.postDelayed(notificationTicker, 1000L)
         floatingPanel?.findViewWithTag<TextView>("float_title")?.text = title
         floatingPanel?.findViewWithTag<TextView>("float_message")?.text = displayMessage()
         if (title.isBlank() && message.isBlank()) return
@@ -220,7 +229,8 @@ class MiMaxIslandService : NotificationListenerService() {
             val islandView = makeView(title, message)
             island = islandView
             val params = WindowManager.LayoutParams(
-                dp(220), dp(when (style) { IslandStyle.HIS -> 58; IslandStyle.LTIN -> 48; IslandStyle.COLOROS -> 54 }),
+                dp(when (style) { IslandStyle.HIS -> 208; IslandStyle.LTIN -> 126; IslandStyle.COLOROS -> 224 }),
+                dp(when (style) { IslandStyle.HIS -> 58; IslandStyle.LTIN -> 42; IslandStyle.COLOROS -> 52 }),
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -312,9 +322,35 @@ class MiMaxIslandService : NotificationListenerService() {
             category == Notification.CATEGORY_REMINDER
     }
 
-    private fun displayMessage(): String =
-        listOf(lastMessage, batteryStatusText, clockStatusText, timerStatusText)
+    private fun displayMessage(): String {
+        val systemChronometer = activeEvents[activeKey]?.let(::systemChronometerText).orEmpty()
+        return listOf(lastMessage, systemChronometer, batteryStatusText, clockStatusText, timerStatusText)
             .filter { it.isNotBlank() }.joinToString("  •  ")
+    }
+
+    private fun hasSystemChronometer(sbn: StatusBarNotification): Boolean =
+        sbn.notification.extras.getBoolean("android.showChronometer", false) &&
+            sbn.notification.`when` > 0L
+
+    /**
+     * Uses chronometer metadata published by the source app (for example Clock or Telecom).
+     * Android does not expose another app's private timer state when it publishes no notification.
+     */
+    private fun systemChronometerText(sbn: StatusBarNotification): String {
+        if (!hasSystemChronometer(sbn)) return ""
+        val notification = sbn.notification
+        val countdown = notification.extras.getBoolean("android.chronometerCountDown", false)
+        val delta = if (countdown) notification.`when` - System.currentTimeMillis()
+            else System.currentTimeMillis() - notification.`when`
+        val seconds = delta.coerceAtLeast(0L) / 1000L
+        val clock = if (seconds >= 3600L) {
+            "%d:%02d:%02d".format(Locale.getDefault(), seconds / 3600L, (seconds / 60L) % 60L, seconds % 60L)
+        } else {
+            "%02d:%02d".format(Locale.getDefault(), seconds / 60L, seconds % 60L)
+        }
+        val isCall = notification.category == Notification.CATEGORY_CALL
+        return (if (countdown) "Timer" else if (isCall) "Call" else "Elapsed") + " • " + clock
+    }
 
     private fun updateActivityMessages() {
         island?.findViewWithTag<TextView>("message")?.let {
@@ -660,10 +696,14 @@ class MiMaxIslandService : NotificationListenerService() {
         val view = makeView("Timer", displayMessage())
         island = view
         val params = WindowManager.LayoutParams(
-            dp(220), dp(when (style) {
+            dp(when (style) {
+                IslandStyle.HIS -> 208
+                IslandStyle.LTIN -> 126
+                IslandStyle.COLOROS -> 224
+            }), dp(when (style) {
                 IslandStyle.HIS -> 58
-                IslandStyle.LTIN -> 48
-                IslandStyle.COLOROS -> 54
+                IslandStyle.LTIN -> 42
+                IslandStyle.COLOROS -> 52
             }),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -948,6 +988,7 @@ class MiMaxIslandService : NotificationListenerService() {
         if (batteryReceiverRegistered) runCatching { unregisterReceiver(batteryReceiver) }
         batteryReceiverRegistered = false
         main.removeCallbacks(timerTicker)
+        main.removeCallbacks(notificationTicker)
         removeFloatingPanel()
         removeIsland()
         super.onDestroy()
