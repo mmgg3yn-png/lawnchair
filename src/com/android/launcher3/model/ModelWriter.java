@@ -495,27 +495,28 @@ public class ModelWriter {
                 }
             }
             if (found != null) {
+                // deleteWidgetInfo already releases the AppWidget ID and removes its row.
                 deleteWidgetInfo(found, holder, reason);
-            }
-        }
-        enqueueDeleteRunnable(newModelTask(() -> {
-            ModelDbController dbController = mModel.getModelDbController();
-            try (SQLiteTransaction transaction = dbController.newTransaction()) {
-                SQLiteDatabase db = transaction.getDb();
-                for (int widgetId : stackInfo.getWidgetIds()) {
+            } else {
+                // Recover orphaned IDs that are missing from the in-memory model.
+                enqueueDeleteRunnable(newModelTask(() -> {
                     if (holder != null) {
                         try {
                             holder.deleteAppWidgetId(widgetId);
                         } catch (Exception e) {
-                            Log.w(TAG, "Failed to release widget ID " + widgetId, e);
+                            Log.w(TAG, "Failed to release orphaned widget ID " + widgetId, e);
                         }
                     }
-                    db.delete(TABLE_NAME, Favorites.APPWIDGET_ID + "=?",
+                    mModel.getModelDbController().delete(
+                            Favorites.APPWIDGET_ID + "=?",
                             new String[]{String.valueOf(widgetId)});
-                }
-                transaction.commit();
+                }));
             }
-        }));
+        }
+        final long stackId = stackInfo.getStackId();
+        enqueueDeleteRunnable(newModelTask(() ->
+                app.lawnchair.widget.WidgetStackManager.INSTANCE.deleteStack(
+                        mModel.getModelDbController().getDb(), stackId)));
     }
 
     /**
