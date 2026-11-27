@@ -340,9 +340,12 @@ class MiMaxIslandService : NotificationListenerService() {
             .filter { it.isNotBlank() }.joinToString("  •  ")
     }
 
-    private fun hasSystemChronometer(sbn: StatusBarNotification): Boolean =
-        sbn.notification.extras.getBoolean("android.showChronometer", false) &&
-            sbn.notification.`when` > 0L
+    private fun hasSystemChronometer(sbn: StatusBarNotification): Boolean {
+        val hasBaseTime = sbn.notification.`when` > 0L
+        val isSystemTimer = eventPrefix(sbn) == "TIMER"
+        return hasBaseTime && (isSystemTimer ||
+            sbn.notification.extras.getBoolean("android.showChronometer", false))
+    }
 
     /**
      * Uses chronometer metadata published by the source app (for example Clock or Telecom).
@@ -351,7 +354,9 @@ class MiMaxIslandService : NotificationListenerService() {
     private fun systemChronometerText(sbn: StatusBarNotification): String {
         if (!hasSystemChronometer(sbn)) return ""
         val notification = sbn.notification
-        val countdown = notification.extras.getBoolean("android.chronometerCountDown", false)
+        val isSystemTimer = eventPrefix(sbn) == "TIMER"
+        val countdown = if (isSystemTimer) notification.`when` > System.currentTimeMillis()
+            else notification.extras.getBoolean("android.chronometerCountDown", false)
         val delta = if (countdown) notification.`when` - System.currentTimeMillis()
             else System.currentTimeMillis() - notification.`when`
         val seconds = delta.coerceAtLeast(0L) / 1000L
@@ -713,7 +718,8 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun activityEyebrow(sbn: StatusBarNotification?): String =
         when (sbn?.notification?.category) {
-            Notification.CATEGORY_CALL -> "CALL IN PROGRESS"
+            Notification.CATEGORY_CALL -> if (sbn.notification.extras
+                .getBoolean("android.showChronometer", false)) "CALL IN PROGRESS" else "INCOMING CALL"
             Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "LIVE TIMER"
             Notification.CATEGORY_NAVIGATION -> "LIVE NAVIGATION"
             else -> if (mediaController != null) "NOW PLAYING" else "LIVE ACTIVITY"
@@ -731,7 +737,8 @@ class MiMaxIslandService : NotificationListenerService() {
             ?: extras?.getCharSequence("android.summaryText"))?.toString()?.trim().orEmpty()
         if (sourceSubText.isNotBlank()) return sourceSubText.take(90)
         return when (sbn?.notification?.category) {
-            Notification.CATEGORY_CALL -> "مكالمة جارية"
+            Notification.CATEGORY_CALL -> if (sbn.notification.extras
+                .getBoolean("android.showChronometer", false)) "مكالمة جارية" else "مكالمة واردة"
             Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "المؤقت يعمل"
             Notification.CATEGORY_NAVIGATION -> "التنقل نشط"
             else -> if (mediaController != null) "تشغيل الوسائط" else "نشاط مباشر"
