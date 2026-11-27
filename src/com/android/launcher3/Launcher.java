@@ -2994,8 +2994,21 @@ public class Launcher extends StatefulActivity<LauncherState>
      * @return a stream of supported system shortcuts.
      */
     public Stream<SystemShortcut.Factory> getSupportedShortcuts(int container) {
-        if (enableLongPressRemoveShortcut()
-                && (container == CONTAINER_DESKTOP || container == CONTAINER_HOTSEAT)) {
+        if (container == CONTAINER_DESKTOP) {
+            if (enableLongPressRemoveShortcut()) {
+                return Stream.of(APP_INFO, WIDGETS, INSTALL, REMOVE,
+                        SystemShortcut.MIMAX_SIZE_NORMAL,
+                        SystemShortcut.MIMAX_SIZE_WIDE,
+                        SystemShortcut.MIMAX_SIZE_TALL,
+                        SystemShortcut.MIMAX_SIZE_LARGE);
+            }
+            return Stream.of(APP_INFO, WIDGETS, INSTALL,
+                    SystemShortcut.MIMAX_SIZE_NORMAL,
+                    SystemShortcut.MIMAX_SIZE_WIDE,
+                    SystemShortcut.MIMAX_SIZE_TALL,
+                    SystemShortcut.MIMAX_SIZE_LARGE);
+        }
+        if (enableLongPressRemoveShortcut() && container == CONTAINER_HOTSEAT) {
             return Stream.of(APP_INFO, WIDGETS, INSTALL, REMOVE);
         }
         return Stream.of(APP_INFO, WIDGETS, INSTALL);
