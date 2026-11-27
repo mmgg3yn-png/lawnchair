@@ -895,6 +895,25 @@ class MiMaxIslandService : NotificationListenerService() {
      * Aligns the island's center with the largest top-edge display cutout when Android exposes
      * its geometry. User-dragged positions take precedence and are persisted separately.
      */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        main.post {
+            val prefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("island_position_custom", false)) return@post
+            val view = island ?: return@post
+            val params = view.layoutParams as? WindowManager.LayoutParams ?: return@post
+            val height = when (style) {
+                IslandStyle.HIS -> if (expanded) 132 else 58
+                IslandStyle.LTIN -> if (expanded) 148 else 42
+                IslandStyle.COLOROS -> if (expanded) 138 else 52
+            }
+            params.x = defaultIslandXOffset()
+            params.y = defaultIslandYOffset(height)
+            runCatching { wm?.updateViewLayout(view, params) }
+            updateIslandSize(view)
+        }
+    }
+
     private fun defaultIslandXOffset(): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return 0
         return runCatching {
