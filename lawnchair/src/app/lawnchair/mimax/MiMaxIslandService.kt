@@ -418,8 +418,9 @@ class MiMaxIslandService : NotificationListenerService() {
                 findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                     if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
                 updateIslandSize(this)
-                animate().scaleX(if (expanded) 1.025f else 1f)
-                    .scaleY(if (expanded) 1.025f else 1f).setDuration(180).start()
+                animate().scaleX(if (expanded && !reduceMotionEnabled()) 1.025f else 1f)
+                    .scaleY(if (expanded && !reduceMotionEnabled()) 1.025f else 1f)
+                    .setDuration(animationDuration(180L)).start()
             }
         }
 
@@ -573,10 +574,17 @@ class MiMaxIslandService : NotificationListenerService() {
         if (content !== root) {
             root.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
         }
-        root.alpha = 0f
-        root.scaleX = .82f
-        root.scaleY = .82f
-        root.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
+        if (reduceMotionEnabled()) {
+            root.alpha = 1f
+            root.scaleX = 1f
+            root.scaleY = 1f
+        } else {
+            root.alpha = 0f
+            root.scaleX = .82f
+            root.scaleY = .82f
+            root.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setDuration(animationDuration(220L)).start()
+        }
         return root
     }
 
@@ -689,6 +697,17 @@ class MiMaxIslandService : NotificationListenerService() {
         floatingPanel = null
     }
 
+    private fun reduceMotionEnabled(): Boolean =
+        getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            .getBoolean("island_reduce_motion", false)
+
+    private fun animationDuration(default: Long): Long {
+        if (reduceMotionEnabled()) return 0L
+        return getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            .getInt("island_animation_duration", default.toInt())
+            .coerceIn(80, 500).toLong()
+    }
+
     private fun updateIslandSize(view: View) {
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
         val customWidth = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
@@ -722,8 +741,13 @@ class MiMaxIslandService : NotificationListenerService() {
     private fun removeIsland() {
         main.removeCallbacks(dismiss)
         island?.let { view ->
-            view.animate().alpha(0f).scaleX(.82f).scaleY(.82f).setDuration(140)
-                .withEndAction { runCatching { wm?.removeView(view) } }.start()
+            if (reduceMotionEnabled()) {
+                runCatching { wm?.removeView(view) }
+            } else {
+                view.animate().alpha(0f).scaleX(.82f).scaleY(.82f)
+                    .setDuration(animationDuration(140L))
+                    .withEndAction { runCatching { wm?.removeView(view) } }.start()
+            }
         }
         island = null
         activeKey = null
