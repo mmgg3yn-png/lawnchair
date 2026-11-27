@@ -331,12 +331,22 @@ class MiMaxIslandService : NotificationListenerService() {
             text.contains("اتصال وارد") || text.contains("مكالمة جارية") ||
             text.contains("مكالمة نشطة")
         val hasCallChronometer = extras.getBoolean("android.showChronometer", false)
+        val timerPackage = sbn.packageName.lowercase().let {
+            it.contains("deskclock") || it.contains("clock") ||
+                it.contains("alarm")
+        }
+        val timerText = text.contains("timer") || text.contains("countdown") ||
+            text.contains("stopwatch") || text.contains("مؤقت") ||
+            text.contains("العد التنازلي") || text.contains("ساعة الإيقاف")
+        val timerNotification = timerText && (ongoing || timerPackage ||
+            category == Notification.CATEGORY_ALARM ||
+            extras.getBoolean("android.showChronometer", false))
         return when {
             (category == Notification.CATEGORY_CALL && (ongoing || hasCallAction || hasCallChronometer)) ||
                 (hasCallAction && callText) || (ongoing && callText) -> "CALL"
             category == Notification.CATEGORY_NAVIGATION -> "NAVIGATION"
             category == Notification.CATEGORY_ALARM ||
-                category == Notification.CATEGORY_REMINDER -> "TIMER"
+                category == Notification.CATEGORY_REMINDER || timerNotification -> "TIMER"
             hasProgress || (ongoing && (text.contains("download") || text.contains("downloading") ||
                 text.contains("تنزيل") || text.contains("تحميل"))) -> "DOWNLOAD"
             text.contains("screen recording") || text.contains("recording screen") ||
