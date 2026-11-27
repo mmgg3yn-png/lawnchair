@@ -309,7 +309,7 @@ class MiMaxIslandService : NotificationListenerService() {
             (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
         val hasCallAction = notification.actions.orEmpty().any { action ->
             val label = action.title?.toString()?.lowercase().orEmpty()
-            listOf("answer", "accept", "decline", "reject", "hang up", "رد", "قبول", "رفض").any(label::contains)
+            listOf("answer", "accept", "decline", "reject", "hang up", "رد", "قبول", "رفض").any { keyword -> label.contains(keyword) }
         }
         val callText = text.contains("incoming call") || text.contains("ongoing call") ||
             text.contains("call in progress") || text.contains("مكالمة واردة") ||
