@@ -1130,6 +1130,9 @@ class MiMaxIslandService : NotificationListenerService() {
     }
 
     override fun onListenerDisconnected() {
+        main.removeCallbacks(notificationTicker)
+        activeEvents.clear()
+        mediaController = null
         removeFloatingPanel()
         removeIsland()
         super.onListenerDisconnected()
