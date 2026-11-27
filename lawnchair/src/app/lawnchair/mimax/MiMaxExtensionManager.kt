@@ -155,6 +155,14 @@ object MiMaxExtensionManager {
                 "لا يمكن تشغيل الإضافة قبل تشغيل اعتمادياتها: ${unavailable.joinToString()}"
             }
         }
+        if (!enabled) {
+            val activeDependents = installed.filter {
+                it.enabled && id in it.definition.dependencies
+            }
+            require(activeDependents.isEmpty()) {
+                "لا يمكن إيقاف الإضافة لأنها مطلوبة من إضافات مفعّلة"
+            }
+        }
         val updated = current.copy(enabled = enabled, lastError = null)
         save(context, installed.map { if (it.definition.id == id) updated else it })
         return updated
@@ -195,7 +203,8 @@ object MiMaxExtensionManager {
     fun createCurrentThemeExtension(context: Context): MiMaxExtensionCodec.Definition {
         val prefs = context.getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
         val theme = MiMaxMt1Codec.Theme(
-            name = prefs.getString("mt1_theme_name", "Mi_Max Theme") ?: "Mi_Max Theme",
+            name = (prefs.getString("mt1_theme_name", "Mi_Max Theme") ?: "Mi_Max Theme")
+                .trim().ifEmpty { "My Mi_Max Theme" }.take(64),
             style = MiMaxIslandPreferences.style(context),
             accentColor = prefs.getInt("mt1_accent_color", 0xFF8C9BFF.toInt()),
             backgroundColor = prefs.getInt("mt1_background_color", 0xF0181D2B.toInt()),
