@@ -346,7 +346,9 @@ public class FolderPagedView extends PagedView<PageIndicatorDots> implements Cli
         if (item instanceof FolderInfo nestedFolder) {
             // Mi_Max Folder Stack: show a real nested folder tile inside its parent folder.
             icon = FolderIcon.inflateFolderAndIcon(
-                    R.layout.folder_icon, mFolder.mActivityContext, this, nestedFolder);
+                    R.layout.folder_icon,
+                    (android.content.Context & ActivityContext) mFolder.mActivityContext,
+                    this, nestedFolder);
         } else if (item instanceof AppPairInfo api) {
             // TODO (b/332607759): Make view cache work with app pair icons
             icon = AppPairIcon.inflateIcon(R.layout.folder_app_pair, ActivityContext.lookupContext(
