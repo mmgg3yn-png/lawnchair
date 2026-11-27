@@ -265,6 +265,8 @@ class MiMaxIslandService : NotificationListenerService() {
         } else {
             island?.findViewWithTag<TextView>("title")?.text = title
             island?.findViewWithTag<TextView>("activity_icon")?.text = activityIcon(sbn)
+            island?.findViewWithTag<TextView>("activity_eyebrow")?.text = activityEyebrow(sbn)
+            island?.findViewWithTag<TextView>("activity_status")?.text = activityStatusLabel(sbn)
             island?.findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                 if (activeEvents.size > 1) View.VISIBLE else View.GONE
             island?.findViewWithTag<TextView>("event_count")?.text = eventPositionLabel()
@@ -540,6 +542,7 @@ class MiMaxIslandService : NotificationListenerService() {
         }
         if (style == IslandStyle.HIS) {
             content.addView(TextView(this).apply {
+                tag = "activity_eyebrow"
                 text = activityEyebrow(sbn)
                 setTextColor(0xFF9FB7FF.toInt())
                 textSize = 8f
@@ -642,6 +645,7 @@ class MiMaxIslandService : NotificationListenerService() {
 
         if (style == IslandStyle.COLOROS) {
             content.addView(TextView(this).apply {
+                tag = "activity_status"
                 text = activityStatusLabel(sbn)
                 setTextColor(accent)
                 textSize = 9f
