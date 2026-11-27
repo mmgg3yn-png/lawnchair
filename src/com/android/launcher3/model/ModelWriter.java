@@ -22,6 +22,7 @@ import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
 
 import android.content.ContentValues;
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseIntArray;
@@ -474,6 +475,72 @@ public class ModelWriter {
             enqueueDeleteRunnable(newModelTask(() -> holder.deleteAppWidgetId(info.appWidgetId)));
         }
         deleteItemFromDatabase(info, reason);
+    }
+
+    /**
+     * Deletes all widget members of a stack, including AppWidget IDs that are not
+     * represented as separate workspace views.
+     */
+    public void deleteWidgetStack(final app.lawnchair.widget.WidgetStackInfo stackInfo,
+            final LauncherWidgetHolder holder, @Nullable final String reason) {
+        for (int widgetId : stackInfo.getWidgetIds()) {
+            LauncherAppWidgetInfo found = null;
+            synchronized (mBgDataModel) {
+                for (ItemInfo item : mBgDataModel.itemsIdMap) {
+                    if (item instanceof LauncherAppWidgetInfo
+                            && ((LauncherAppWidgetInfo) item).appWidgetId == widgetId) {
+                        found = (LauncherAppWidgetInfo) item;
+                        break;
+                    }
+                }
+            }
+            if (found != null) {
+                deleteWidgetInfo(found, holder, reason);
+            }
+        }
+        enqueueDeleteRunnable(newModelTask(() -> {
+            ModelDbController dbController = mModel.getModelDbController();
+            try (SQLiteTransaction transaction = dbController.newTransaction()) {
+                SQLiteDatabase db = transaction.getDb();
+                for (int widgetId : stackInfo.getWidgetIds()) {
+                    if (holder != null) {
+                        try {
+                            holder.deleteAppWidgetId(widgetId);
+                        } catch (Exception e) {
+                            Log.w(TAG, "Failed to release widget ID " + widgetId, e);
+                        }
+                    }
+                    db.delete(TABLE_NAME, Favorites.APPWIDGET_ID + "=?",
+                            new String[]{String.valueOf(widgetId)});
+                }
+                transaction.commit();
+            }
+        }));
+    }
+
+    /**
+     * Persists ordered stack membership and updates the in-memory widget records.
+     */
+    public void saveWidgetStack(final app.lawnchair.widget.WidgetStackInfo stackInfo) {
+        newModelTask(() -> {
+            ModelDbController dbController = mModel.getModelDbController();
+            try (SQLiteTransaction transaction = dbController.newTransaction()) {
+                app.lawnchair.widget.WidgetStackManager.INSTANCE.saveStack(
+                        transaction.getDb(), stackInfo);
+                transaction.commit();
+            }
+            synchronized (mBgDataModel) {
+                for (int widgetId : stackInfo.getWidgetIds()) {
+                    for (ItemInfo item : mBgDataModel.itemsIdMap) {
+                        if (item instanceof LauncherAppWidgetInfo
+                                && ((LauncherAppWidgetInfo) item).appWidgetId == widgetId) {
+                            ((LauncherAppWidgetInfo) item).widgetStackId = stackInfo.getStackId();
+                            break;
+                        }
+                    }
+                }
+            }
+        }).executeOnModelThread();
     }
 
     private void notifyDelete(Collection<? extends ItemInfo> items) {
