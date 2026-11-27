@@ -17,7 +17,7 @@
       "theme": {
         "name": "HyperOS",
         "style": "HIS",
-        "accentColor": 4287545599,
+        "accentColor": 4287539455,
         "backgroundColor": 4028112171,
         "cornerRadiusDp": 22,
         "widthDp": 320
@@ -38,7 +38,7 @@
       "theme": {
         "name": "iPhone",
         "style": "LTIN",
-        "accentColor": 4286213805,
+        "accentColor": 4286178981,
         "backgroundColor": 4026531840,
         "cornerRadiusDp": 34,
         "widthDp": 345
@@ -59,8 +59,8 @@
       "theme": {
         "name": "ColorOS",
         "style": "COLOROS",
-        "accentColor": 4290379714,
-        "backgroundColor": 4029026605,
+        "accentColor": 4285126594,
+        "backgroundColor": 4029032749,
         "cornerRadiusDp": 18,
         "widthDp": 330
       }
