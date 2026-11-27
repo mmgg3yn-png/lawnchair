@@ -235,6 +235,10 @@ class MiMaxIslandService : NotificationListenerService() {
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT
             ).apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                }
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
                 val positionPrefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 val customPosition = positionPrefs.getBoolean("island_position_custom", false)
@@ -812,6 +816,10 @@ class MiMaxIslandService : NotificationListenerService() {
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            }
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             val positionPrefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
             val customPosition = positionPrefs.getBoolean("island_position_custom", false)
