@@ -26,7 +26,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
-import android.widget.EditText
 import android.widget.TextView
 import android.content.Context
 import android.content.BroadcastReceiver
@@ -102,11 +101,17 @@ class MiMaxIslandService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         runCatching {
-            registerReceiver(batteryReceiver, IntentFilter().apply {
+            val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_BATTERY_CHANGED)
                 addAction(Intent.ACTION_TIME_TICK)
                 addAction(ACTION_TIMER_UPDATED)
-            })
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(batteryReceiver, filter)
+            }
             batteryReceiverRegistered = true
         }
         timerTicker.run()
@@ -451,6 +456,17 @@ class MiMaxIslandService : NotificationListenerService() {
             toggleFloatingPanel(title = island?.findViewWithTag<TextView>("title")?.text?.toString().orEmpty())
         })
         content.addView(controls, LinearLayout.LayoutParams(-1, -2))
+        content.addView(TextView(this).apply {
+            text = if (floatingPanel == null) "▣  نافذة عائمة" else "إغلاق النافذة العائمة"
+            setTextColor(0xFFB9D7FF.toInt())
+            textSize = 10f
+            gravity = Gravity.CENTER
+            isClickable = true
+            setOnClickListener {
+                toggleFloatingPanel(title = island?.findViewWithTag<TextView>("title")?.text?.toString().orEmpty())
+                text = if (floatingPanel == null) "▣  نافذة عائمة" else "إغلاق النافذة العائمة"
+            }
+        }, LinearLayout.LayoutParams(-1, -2))
 
         if (content !== root) {
             root.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
