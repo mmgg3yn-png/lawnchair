@@ -2330,13 +2330,22 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                         anchorIcon.invalidate();
                     }
                     FolderIcon sourceIcon = findMiMaxFolderIcon(this, sourceFolder.id);
-                    if (sourceIcon != null && sourceIcon != anchorIcon) {
-                        sourceIcon.setVisibility(View.GONE);
+                    if (sourceIcon == null && newView instanceof FolderIcon) {
+                        sourceIcon = (FolderIcon) newView;
+                    }
+                    if (sourceIcon != null) {
+                        sourceIcon.setVisibility(sourceFolder.id == merged.getChildFolderIds().get(0)
+                                ? View.VISIBLE : View.GONE);
                     }
                     FolderIcon destinationIcon = findMiMaxFolderIcon(this,
                             destinationFolder.id);
-                    if (destinationIcon != null && destinationIcon != anchorIcon) {
-                        destinationIcon.setVisibility(View.GONE);
+                    if (destinationIcon == null && v instanceof FolderIcon) {
+                        destinationIcon = (FolderIcon) v;
+                    }
+                    if (destinationIcon != null) {
+                        destinationIcon.setVisibility(
+                                destinationFolder.id == merged.getChildFolderIds().get(0)
+                                        ? View.VISIBLE : View.GONE);
                     }
                 }
                 return true;
