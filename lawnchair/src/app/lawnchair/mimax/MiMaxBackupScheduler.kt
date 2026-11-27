@@ -31,6 +31,10 @@ object MiMaxBackupScheduler {
         if (isEnabled(context)) schedule(context)
     }
 
+    fun syncWithPreferences(context: Context) {
+        if (isEnabled(context)) schedule(context) else cancel(context)
+    }
+
     fun schedule(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pendingIntent = pendingIntent(context)
