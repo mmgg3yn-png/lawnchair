@@ -168,6 +168,66 @@ class MiMaxControlActivity : Activity() {
             )
         }
         root.addView(TextView(this).apply {
+            text = "محرر ثيم الجزيرة"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        val themePrefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+        fun themeField(hintText: String, value: String, numeric: Boolean = false) =
+            EditText(this).apply {
+                hint = hintText
+                setSingleLine(true)
+                inputType = if (numeric) InputType.TYPE_CLASS_NUMBER
+                    else InputType.TYPE_CLASS_TEXT
+                setText(value)
+                setTextColor(0xFFFFFFFF.toInt())
+                setHintTextColor(0xFF9A9AA3.toInt())
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+            }
+        val themeName = themeField("اسم الثيم", themePrefs.getString("mt1_theme_name", "Mi_Max Theme") ?: "Mi_Max Theme")
+        val accentColor = themeField("لون التمييز ARGB مثل FF8C9BFF",
+            "%08X".format(themePrefs.getInt("mt1_accent_color", 0xFF8C9BFF.toInt())))
+        val backgroundColor = themeField("لون الخلفية ARGB مثل F0181D2B",
+            "%08X".format(themePrefs.getInt("mt1_background_color", 0xF0181D2B.toInt())))
+        val cornerRadius = themeField("استدارة الزوايا dp (8 إلى 48)",
+            themePrefs.getInt("mt1_corner_radius", 22).toString(), true)
+        val islandWidth = themeField("عرض الجزيرة dp (180 إلى 360)",
+            themePrefs.getInt("mt1_width", 320).toString(), true)
+        listOf(themeName, accentColor, backgroundColor, cornerRadius, islandWidth).forEach { field ->
+            root.addView(field, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(6) })
+        }
+        addButton("تطبيق وحفظ الثيم") {
+            runCatching {
+                val name = themeName.text.toString().trim().take(48)
+                require(name.isNotBlank()) { "اكتب اسم الثيم" }
+                fun parseColor(field: EditText): Int {
+                    val raw = field.text.toString().trim().removePrefix("#")
+                    require(raw.matches(Regex("[0-9a-fA-F]{8}"))) { "اكتب اللون بصيغة ARGB من 8 خانات" }
+                    return raw.toLong(16).toInt()
+                }
+                val accent = parseColor(accentColor)
+                val background = parseColor(backgroundColor)
+                val radius = cornerRadius.text.toString().toIntOrNull()
+                    ?: error("قيمة الاستدارة غير صحيحة")
+                val width = islandWidth.text.toString().toIntOrNull()
+                    ?: error("عرض الجزيرة غير صحيح")
+                require(radius in 8..48) { "الاستدارة يجب أن تكون بين 8 و48" }
+                require(width in 180..360) { "العرض يجب أن يكون بين 180 و360" }
+                themePrefs.edit()
+                    .putString("mt1_theme_name", name)
+                    .putInt("mt1_accent_color", accent)
+                    .putInt("mt1_background_color", background)
+                    .putInt("mt1_corner_radius", radius)
+                    .putInt("mt1_width", width)
+                    .apply()
+                sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
+                Toast.makeText(this, "تم تطبيق الثيم وحفظه", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(this, "تعذر تطبيق الثيم: " + (it.message ?: "قيمة غير صالحة"), Toast.LENGTH_LONG).show()
+            }
+        }
+        root.addView(TextView(this).apply {
             text = "حالة إذن العرض: " + if (Settings.canDrawOverlays(this@MiMaxControlActivity)) "ممنوح" else "غير ممنوح"
             setTextColor(0xFFB9D7FF.toInt())
             textSize = 13f
