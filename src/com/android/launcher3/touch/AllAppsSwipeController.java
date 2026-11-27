@@ -158,6 +158,9 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
         if (mLauncher.isInState(ALL_APPS) && !mLauncher.getAppsView().shouldContainerScroll(ev)) {
             return false;
         }
+        if (app.lawnchair.widget.WidgetStackView.isEventOverStack(mLauncher, ev)) {
+            return false;
+        }
         return true;
     }
 
