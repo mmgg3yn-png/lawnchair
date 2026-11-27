@@ -1,0 +1,69 @@
+{
+  "format": "MIMAX_EXTENSION_CATALOG",
+  "schemaVersion": 1,
+  "extensions": [
+    {
+      "format": "MIMAX_EXTENSION",
+      "schemaVersion": 1,
+      "id": "mimax.store.hyperos",
+      "name": "HyperOS Live Island",
+      "versionCode": 2,
+      "minLauncherVersionCode": 0,
+      "description": "ثيم جزيرة بطابع HyperOS مع لون أزرق وخلفية داكنة",
+      "dependencies": [],
+      "permissions": [
+        "theme.apply"
+      ],
+      "theme": {
+        "name": "HyperOS",
+        "style": "HIS",
+        "accentColor": 4287545599,
+        "backgroundColor": 4028112171,
+        "cornerRadiusDp": 22,
+        "widthDp": 320
+      }
+    },
+    {
+      "format": "MIMAX_EXTENSION",
+      "schemaVersion": 1,
+      "id": "mimax.store.iphone",
+      "name": "iPhone Dynamic Island",
+      "versionCode": 2,
+      "minLauncherVersionCode": 0,
+      "description": "ثيم أسود مستوحى من Dynamic Island على iPhone",
+      "dependencies": [],
+      "permissions": [
+        "theme.apply"
+      ],
+      "theme": {
+        "name": "iPhone",
+        "style": "LTIN",
+        "accentColor": 4286213805,
+        "backgroundColor": 4026531840,
+        "cornerRadiusDp": 34,
+        "widthDp": 345
+      }
+    },
+    {
+      "format": "MIMAX_EXTENSION",
+      "schemaVersion": 1,
+      "id": "mimax.store.coloros",
+      "name": "ColorOS Live Alerts",
+      "versionCode": 2,
+      "minLauncherVersionCode": 0,
+      "description": "ثيم تنبيهات مباشرة بطابع ColorOS",
+      "dependencies": [],
+      "permissions": [
+        "theme.apply"
+      ],
+      "theme": {
+        "name": "ColorOS",
+        "style": "COLOROS",
+        "accentColor": 4290379714,
+        "backgroundColor": 4029026605,
+        "cornerRadiusDp": 18,
+        "widthDp": 330
+      }
+    }
+  ]
+}
