@@ -112,7 +112,7 @@ fun About(
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_home_comp),
+                    painter = painterResource(id = R.drawable.mimax_launcher_about),
                     contentDescription = null,
                     modifier = Modifier
                         .size(72.dp)
@@ -160,6 +160,15 @@ fun About(
         }
         item {
             Spacer(modifier = Modifier.height(8.dp))
+        }
+        item {
+            Text(
+                text = "تطوير وهوية Mi_Max Launcher: محمد السعيد علي\\nتعديلات وميزات Mi_Max الأصلية محفوظة باسم مطورها.\\nالأساس المفتوح المصدر: Lawnchair — Apache License 2.0.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            )
         }
         item {
             UpdateSection(
