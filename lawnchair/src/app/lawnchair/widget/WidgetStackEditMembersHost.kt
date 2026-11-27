@@ -293,7 +293,7 @@ class WidgetStackEditMembersHost(
         val providerInfo = helper.getLauncherAppWidgetInfo(wi.appWidgetId, wi.providerName) ?: return null
         val idp = LauncherAppState.getIDP(launcher)
         val iconCache = LauncherAppState.getInstance(launcher).iconCache
-        return WidgetItem(providerInfo, idp, iconCache, launcher, helper)
+        return WidgetItem(providerInfo, idp, iconCache, launcher)
     }
 
     private fun loadCell(widgetId: Int, root: View, container: FrameLayout) {
