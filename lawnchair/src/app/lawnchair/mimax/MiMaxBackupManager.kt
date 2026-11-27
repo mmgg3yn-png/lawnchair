@@ -21,6 +21,10 @@ object MiMaxBackupManager {
     private const val VERSION_LEGACY = 1
     private const val VERSION_CURRENT = 2
     private const val MAX_BYTES = 2 * 1024 * 1024
+    private val TRANSIENT_BACKUP_KEYS = setOf(
+        MiMaxBackupReceiver.KEY_LAST_SUCCESS,
+        MiMaxBackupReceiver.KEY_LAST_ERROR
+    )
     private val preferenceFiles = listOf(
         "mimax_launcher",
         "mimax_stacked_folders",
@@ -36,7 +40,9 @@ object MiMaxBackupManager {
         preferenceFiles.forEach { name ->
             val entries = JSONObject()
             context.getSharedPreferences(name, Context.MODE_PRIVATE).all.forEach { (key, value) ->
-                val encoded = when (value) {
+                val encoded = if (name == "mimax_launcher" && key in TRANSIENT_BACKUP_KEYS) {
+                    null
+                } else when (value) {
                     is String -> JSONObject().put("type", "string").put("value", value)
                     is Boolean -> JSONObject().put("type", "boolean").put("value", value)
                     is Int -> JSONObject().put("type", "int").put("value", value)
@@ -174,6 +180,7 @@ object MiMaxBackupManager {
             }
             throw failure
         }
+        MiMaxBackupScheduler.syncWithPreferences(context)
     }
 
     private fun applyValues(
