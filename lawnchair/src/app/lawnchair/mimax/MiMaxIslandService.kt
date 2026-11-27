@@ -243,8 +243,8 @@ class MiMaxIslandService : NotificationListenerService() {
                 y = if (customPosition) positionPrefs.getInt("island_position_y", dp(8))
                     else defaultIslandYOffset(when (style) {
                         IslandStyle.HIS -> 58
-                        IslandStyle.LTIN -> 48
-                        IslandStyle.COLOROS -> 54
+                        IslandStyle.LTIN -> 42
+                        IslandStyle.COLOROS -> 52
                     })
             }
             val windowManager = wm
@@ -771,8 +771,8 @@ class MiMaxIslandService : NotificationListenerService() {
             y = if (customPosition) positionPrefs.getInt("island_position_y", dp(8))
                 else defaultIslandYOffset(when (style) {
                     IslandStyle.HIS -> 58
-                    IslandStyle.LTIN -> 48
-                    IslandStyle.COLOROS -> 54
+                    IslandStyle.LTIN -> 42
+                    IslandStyle.COLOROS -> 52
                 })
         }
         runCatching { windowManager.addView(view, params) }
