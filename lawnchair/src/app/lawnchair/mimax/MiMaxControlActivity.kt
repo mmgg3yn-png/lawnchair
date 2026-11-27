@@ -64,6 +64,17 @@ class MiMaxControlActivity : Activity() {
             MiMaxIslandPreferences.setEnabled(this, !MiMaxIslandPreferences.enabled(this))
             render()
         }
+        addButton(
+            if (getSharedPreferences("mimax_launcher", MODE_PRIVATE).getBoolean("focus_mode_enabled", false))
+                "إيقاف وضع التركيز" else "تشغيل وضع التركيز"
+        ) {
+            val prefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            val enabled = !prefs.getBoolean("focus_mode_enabled", false)
+            prefs.edit().putBoolean("focus_mode_enabled", enabled).apply()
+            sendBroadcast(Intent("app.lawnchair.mimax.ACTION_FOCUS_MODE_CHANGED"))
+            Toast.makeText(this, if (enabled) "تم تشغيل وضع التركيز وإخفاء إشعارات الجزيرة" else "تم إيقاف وضع التركيز", Toast.LENGTH_SHORT).show()
+            render()
+        }
         addButton("منح إذن الظهور فوق التطبيقات") {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
         }
