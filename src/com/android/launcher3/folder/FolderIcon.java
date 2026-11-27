@@ -431,6 +431,10 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
             boolean isAnchor = owner == null || owner.getChildFolderIds().size() < 2
                     || owner.getChildFolderIds().get(0) == folderId;
             icon.setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
+            if (icon.mFolderName != null) {
+                icon.mFolderName.setText(isAnchor && owner != null
+                        ? owner.getTitle() : icon.mInfo.title);
+            }
             icon.invalidate();
         }
     }
@@ -823,12 +827,11 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
             mBackground.drawBackground(canvas);
         }
 
-        if (mCurrentPreviewItems.isEmpty() && !mAnimating) return;
-
-        mPreviewItemManager.draw(canvas);
-
-        if (!mBackground.drawingDelegated()) {
-            mBackground.drawBackgroundStroke(canvas);
+        if (!mCurrentPreviewItems.isEmpty() || mAnimating) {
+            mPreviewItemManager.draw(canvas);
+            if (!mBackground.drawingDelegated()) {
+                mBackground.drawBackgroundStroke(canvas);
+            }
         }
 
         drawDot(canvas);
@@ -836,9 +839,10 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     }
 
     /**
-     * Draws a compact layered-folder marker when this folder is the first
-     * (anchor) folder in a saved Mi_Max stack. Child folders remain normal
-     * Launcher folders and are never copied or destroyed by the stack model.
+     * Draws a real layered preview for a Mi_Max stacked folder. The three offset
+     * folder sheets communicate depth, while the front sheet contains miniature
+     * app tiles. This is drawn over the normal Launcher folder preview, without
+     * replacing or copying the underlying FolderInfo records.
      */
     private void drawMiMaxStackIndicator(Canvas canvas) {
         if (mInfo == null || mInfo.id < 0) return;
@@ -855,29 +859,73 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         } catch (RuntimeException ignored) {
             return;
         }
-        if (stack == null) return;
+        if (stack == null || stack.getChildFolderIds().size() < 2) return;
 
         float density = getResources().getDisplayMetrics().density;
-        float right = getWidth() - getPaddingRight() - 5f * density;
-        float top = getPaddingTop() + 5f * density;
-        float width = 15f * density;
-        float height = 19f * density;
+        float iconSize = mActivity.getDeviceProfile().iconSizePx;
+        float left = (getWidth() - iconSize) / 2f;
+        float top = getPaddingTop();
+        float size = iconSize;
+        float inset = size * 0.13f;
+        float cardLeft = left + inset + size * 0.08f;
+        float cardTop = top + size * 0.08f;
+        float cardWidth = size * 0.76f;
+        float cardHeight = size * 0.76f;
+        float radius = 7f * density;
+
+        // Back sheets: visible offset edges create the stacked-folder silhouette.
         mMiMaxStackPaint.setStyle(Paint.Style.FILL);
-        mMiMaxStackPaint.setColor(0xE6222222);
-        canvas.drawRoundRect(right - width + 2f * density, top + 3f * density,
-                right + 2f * density, top + height + 3f * density,
+        mMiMaxStackPaint.setColor(0xFF65718C);
+        canvas.drawRoundRect(cardLeft + size * 0.13f, cardTop + size * 0.12f,
+                cardLeft + cardWidth + size * 0.13f, cardTop + cardHeight + size * 0.12f,
+                radius, radius, mMiMaxStackPaint);
+        mMiMaxStackPaint.setColor(0xFF8996B2);
+        canvas.drawRoundRect(cardLeft + size * 0.065f, cardTop + size * 0.06f,
+                cardLeft + cardWidth + size * 0.065f, cardTop + cardHeight + size * 0.06f,
+                radius, radius, mMiMaxStackPaint);
+
+        // Front folder sheet.
+        mMiMaxStackPaint.setColor(0xFFF1F3FA);
+        canvas.drawRoundRect(cardLeft, cardTop, cardLeft + cardWidth,
+                cardTop + cardHeight, radius, radius, mMiMaxStackPaint);
+        mMiMaxStackPaint.setColor(0xFF8EA8FF);
+        canvas.drawRoundRect(cardLeft + size * 0.04f, cardTop + size * 0.035f,
+                cardLeft + size * 0.37f, cardTop + size * 0.13f,
                 3f * density, 3f * density, mMiMaxStackPaint);
-        mMiMaxStackPaint.setColor(0xF2FFFFFF);
-        canvas.drawRoundRect(right - width, top + 1f * density,
-                right, top + height + 1f * density,
-                3f * density, 3f * density, mMiMaxStackPaint);
-        mMiMaxStackPaint.setColor(0xFF252525);
+
+        // App tiles inside the front sheet.
+        float tile = size * 0.16f;
+        float gap = size * 0.075f;
+        float gridLeft = cardLeft + size * 0.13f;
+        float gridTop = cardTop + size * 0.23f;
+        int[] tileColors = new int[] {
+                0xFF5B8DEF, 0xFF45B69C, 0xFFFFB45B, 0xFFB17AE5
+        };
+        for (int i = 0; i < tileColors.length; i++) {
+            int row = i / 2;
+            int column = i % 2;
+            float x = gridLeft + column * (tile + gap);
+            float y = gridTop + row * (tile + gap);
+            mMiMaxStackPaint.setColor(tileColors[i]);
+            canvas.drawRoundRect(x, y, x + tile, y + tile,
+                    3f * density, 3f * density, mMiMaxStackPaint);
+        }
+
+        // Stack count badge.
+        float badgeRadius = 9f * density;
+        float badgeCx = left + size * 0.88f;
+        float badgeCy = top + size * 0.86f;
+        mMiMaxStackPaint.setColor(0xFF202633);
+        canvas.drawCircle(badgeCx, badgeCy, badgeRadius, mMiMaxStackPaint);
+        mMiMaxStackPaint.setColor(0xFFFFFFFF);
         mMiMaxStackPaint.setTextSize(9f * density);
         mMiMaxStackPaint.setTypeface(android.graphics.Typeface.create(
                 android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
         String count = String.valueOf(stack.getChildFolderIds().size());
-        canvas.drawText(count, right - width + 3f * density,
-                top + 13f * density, mMiMaxStackPaint);
+        android.graphics.Rect bounds = new android.graphics.Rect();
+        mMiMaxStackPaint.getTextBounds(count, 0, count.length(), bounds);
+        canvas.drawText(count, badgeCx - bounds.exactCenterX(),
+                badgeCy - bounds.exactCenterY(), mMiMaxStackPaint);
     }
 
     public void drawDot(Canvas canvas) {
