@@ -88,13 +88,13 @@ object MiMaxMt1Codec {
         val name = json.getString("name")
         val radius = json.getInt("cornerRadiusDp")
         val width = json.getInt("widthDp")
+        val accent = json.getLong("accentColor")
+        val background = json.getLong("backgroundColor")
         require(name.isNotBlank() && name.length <= 64) { "اسم الثيم غير صالح" }
         require(radius in 8..48 && width in 180..360) { "قيم أبعاد الثيم خارج النطاق" }
-        return Theme(
-            name, style,
-            json.getLong("accentColor").toInt(),
-            json.getLong("backgroundColor").toInt(),
-            radius, width
-        )
+        require(accent in 0L..0xFFFFFFFFL && background in 0L..0xFFFFFFFFL) {
+            "قيم الألوان داخل MT1 غير صالحة"
+        }
+        return Theme(name, style, accent.toInt(), background.toInt(), radius, width)
     }
 }
