@@ -74,7 +74,7 @@ public class DatabaseHelper extends NoLocaleSQLiteHelper implements
      * Represents the schema of the database. Changes in scheme need not be backwards compatible.
      * When increasing the scheme version, ensure that downgrade_schema.json is updated
      */
-    public static final int SCHEMA_VERSION = 32;
+    public static final int SCHEMA_VERSION = 33;
     private static final String TAG = "DatabaseHelper";
     private static final boolean LOGD = false;
 
@@ -277,7 +277,16 @@ public class DatabaseHelper extends NoLocaleSQLiteHelper implements
             }
             // Fall through
             case 32: {
-                // DB Upgraded successfully
+                // Add persistent widget stack membership and ordered stack metadata.
+                try (SQLiteTransaction t = new SQLiteTransaction(db)) {
+                    db.execSQL("ALTER TABLE favorites ADD COLUMN widgetStackId INTEGER;");
+                    db.execSQL("ALTER TABLE favorites ADD COLUMN widgetStackData TEXT;");
+                    t.commit();
+                } catch (SQLException ex) {
+                    Log.e(TAG, ex.getMessage(), ex);
+                    break;
+                }
+                // DB upgraded successfully.
                 return;
             }
         }
