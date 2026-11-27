@@ -156,8 +156,48 @@ fun showWidgetStackDialog(
                             })
                         }
 
-                        existingStackView?.setStackInfo(finalStackInfo, widgetsToUpdate)
-                        modelWriter?.saveWidgetStack(finalStackInfo)
+                        when {
+                            finalStackInfo.widgetIds.isEmpty() -> {
+                                error("لا يمكن حفظ مجموعة ويدجت فارغة")
+                            }
+                            finalStackInfo.widgetIds.size == 1 -> {
+                                val remainingWidgetId = finalStackInfo.widgetIds.single()
+                                val liveStackView = existingStackView
+                                if (liveStackView != null) {
+                                    liveStackView.setStackInfo(finalStackInfo, widgetsToUpdate)
+                                    launcher.workspace?.collapseStackToSingleWidget(
+                                        liveStackView,
+                                        remainingWidgetId,
+                                    )
+                                } else {
+                                    // Recovery path for an editor opened while the live
+                                    // stack view is absent: restore the surviving widget
+                                    // row as a normal widget and clear stack metadata.
+                                    val survivor = widgetsToUpdate.firstOrNull()
+                                    if (survivor != null) {
+                                        survivor.widgetStackId = null
+                                        survivor.container = validContainer
+                                        survivor.sourceContainer = validContainer
+                                        survivor.screenId = finalStackInfo.screenId
+                                        survivor.cellX = finalStackInfo.cellX
+                                        survivor.cellY = finalStackInfo.cellY
+                                        survivor.spanX = finalStackInfo.spanX
+                                        survivor.spanY = finalStackInfo.spanY
+                                        modelWriter?.updateItemInDatabase(survivor)
+                                        Executors.MODEL_EXECUTOR.execute {
+                                            WidgetStackManager.deleteStack(
+                                                launcher.model.modelDbController.db,
+                                                finalStackInfo.stackId,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            else -> {
+                                existingStackView?.setStackInfo(finalStackInfo, widgetsToUpdate)
+                                modelWriter?.saveWidgetStack(finalStackInfo)
+                            }
+                        }
                     } else {
                         // --- Create new stack ---
                         widgetsToUpdate.forEach { wi ->
@@ -550,6 +590,15 @@ private fun ComposeBottomSheet<*>.WidgetStackDialogContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        if (!isEditing && currentStackInfo.widgetIds.size < 2) {
+            Text(
+                text = "أضف ويدجت ثانية على الأقل حتى يتم إنشاء التكديس.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+
         // Action buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -566,6 +615,7 @@ private fun ComposeBottomSheet<*>.WidgetStackDialogContent(
             }
             Button(
                 onClick = { onSave(currentStackInfo) },
+                enabled = isEditing || currentStackInfo.widgetIds.size >= 2,
                 modifier = Modifier.heightIn(min = 48.dp),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             ) {
