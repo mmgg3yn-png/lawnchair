@@ -50,6 +50,7 @@ import com.android.launcher3.keyboard.ViewGroupFocusHelper;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicatorDots;
@@ -342,7 +343,11 @@ public class FolderPagedView extends PagedView<PageIndicatorDots> implements Cli
         }
 
         final View icon;
-        if (item instanceof AppPairInfo api) {
+        if (item instanceof FolderInfo nestedFolder) {
+            // Mi_Max Folder Stack: show a real nested folder tile inside its parent folder.
+            icon = FolderIcon.inflateFolderAndIcon(
+                    R.layout.folder_icon, mFolder.mActivityContext, this, nestedFolder);
+        } else if (item instanceof AppPairInfo api) {
             // TODO (b/332607759): Make view cache work with app pair icons
             icon = AppPairIcon.inflateIcon(R.layout.folder_app_pair, ActivityContext.lookupContext(
                     getContext()), null , api, BubbleTextView.DISPLAY_FOLDER);
