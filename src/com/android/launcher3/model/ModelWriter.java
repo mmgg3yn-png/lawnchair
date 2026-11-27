@@ -31,6 +31,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.LauncherModel;
+import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherModel.CallbackTask;
 import com.android.launcher3.LauncherSettings.Favorites;
@@ -449,6 +450,7 @@ public class ModelWriter {
                 }
             }
             mBgDataModel.removeItem(mContext, items, mOwner);
+            notifyMiMaxFolderStackMembershipChanged(items);
             verifier.verifyModel();
         }));
     }
@@ -473,8 +475,21 @@ public class ModelWriter {
                 new MiMaxFolderStackStore(mContext).removeFolderFromAll(info.id);
             }
             mBgDataModel.removeItem(mContext, itemsToDelete, mOwner);
+            notifyMiMaxFolderStackMembershipChanged(itemsToDelete);
             verifier.verifyModel();
         }));
+    }
+
+    private void notifyMiMaxFolderStackMembershipChanged(
+            Collection<? extends ItemInfo> deletedItems) {
+        boolean removedFolder = deletedItems.stream().anyMatch(item -> item instanceof FolderInfo);
+        if (!removedFolder || !(mOwner instanceof Launcher)) return;
+        Launcher launcher = (Launcher) mOwner;
+        mUiExecutor.execute(() -> {
+            if (launcher.getWorkspace() != null) {
+                launcher.getWorkspace().refreshMiMaxFolderStackVisibility();
+            }
+        });
     }
 
     /**
