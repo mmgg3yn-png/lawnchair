@@ -26,6 +26,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.EditText
 import android.widget.TextView
 import android.content.Context
 import android.content.BroadcastReceiver
@@ -51,12 +52,37 @@ class MiMaxIslandService : NotificationListenerService() {
     private var lastMessage = ""
     private var batteryStatusText = ""
     private var clockStatusText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+    private var timerStatusText = ""
+    private val timerTicker = object : Runnable {
+        override fun run() {
+            val end = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                .getLong("island_timer_end", 0L)
+            val remaining = end - System.currentTimeMillis()
+            timerStatusText = if (remaining > 0L) {
+                val seconds = (remaining / 1000L).coerceAtLeast(0L)
+                "Timer %02d:%02d".format(Locale.getDefault(), seconds / 60, seconds % 60)
+            } else {
+                if (end != 0L) {
+                    getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE).edit()
+                        .remove("island_timer_end").apply()
+                }
+                ""
+            }
+            updateActivityMessages()
+            if (end > System.currentTimeMillis()) main.postDelayed(this, 1000L)
+        }
+    }
     private var batteryReceiverRegistered = false
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == ACTION_TIMER_UPDATED) {
+                main.removeCallbacks(timerTicker)
+                timerTicker.run()
+                return
+            }
             if (intent.action == Intent.ACTION_TIME_TICK) {
                 clockStatusText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-                island?.findViewWithTag<TextView>("message")?.let { it.text = displayMessage() }
+                updateActivityMessages()
                 return
             }
             if (intent.action != Intent.ACTION_BATTERY_CHANGED) return
@@ -79,9 +105,11 @@ class MiMaxIslandService : NotificationListenerService() {
             registerReceiver(batteryReceiver, IntentFilter().apply {
                 addAction(Intent.ACTION_BATTERY_CHANGED)
                 addAction(Intent.ACTION_TIME_TICK)
+                addAction(ACTION_TIMER_UPDATED)
             })
             batteryReceiverRegistered = true
         }
+        timerTicker.run()
     }
 
     override fun onListenerConnected() {
@@ -206,8 +234,16 @@ class MiMaxIslandService : NotificationListenerService() {
     }
 
     private fun displayMessage(): String =
-        listOf(lastMessage, batteryStatusText, clockStatusText)
+        listOf(lastMessage, batteryStatusText, clockStatusText, timerStatusText)
             .filter { it.isNotBlank() }.joinToString("  •  ")
+
+    private fun updateActivityMessages() {
+        island?.findViewWithTag<TextView>("message")?.let {
+            it.text = displayMessage()
+            it.visibility = if (expanded) View.VISIBLE else View.GONE
+        }
+        floatingPanel?.findViewWithTag<TextView>("float_message")?.text = displayMessage()
+    }
 
     private fun refreshMediaSession() {
         mediaController = runCatching {
@@ -511,7 +547,9 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun updateIslandSize(view: View) {
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
-        params.width = dp(if (expanded) 320 else 220)
+        val customWidth = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            .getInt("mt1_width", 320)
+        params.width = dp(if (expanded) customWidth else 220)
         params.height = dp(when {
             expanded -> if (style == IslandStyle.COLOROS) 124 else 116
             style == IslandStyle.HIS -> 58
@@ -522,21 +560,19 @@ class MiMaxIslandService : NotificationListenerService() {
     }
 
     private fun islandBackground() = GradientDrawable().apply {
-        setColor(when (style) {
+        val prefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+        setColor(prefs.getInt("mt1_background_color", when (style) {
             IslandStyle.HIS -> 0xF0181D2B.toInt()
             IslandStyle.LTIN -> 0xF0060608.toInt()
             IslandStyle.COLOROS -> 0xF0262730.toInt()
-        })
-        cornerRadius = dp(when (style) {
+        }))
+        cornerRadius = dp(prefs.getInt("mt1_corner_radius", when (style) {
             IslandStyle.HIS -> 22
             IslandStyle.LTIN -> 36
             IslandStyle.COLOROS -> 16
-        }).toFloat()
-        when (style) {
-            IslandStyle.HIS -> setStroke(dp(1), 0x668DAEFF)
-            IslandStyle.LTIN -> setStroke(dp(1), 0x55FFFFFF)
-            IslandStyle.COLOROS -> setStroke(dp(1), 0x778C9BFF)
-        }
+        })).toFloat()
+        val accent = prefs.getInt("mt1_accent_color", 0xFF8C9BFF.toInt())
+        setStroke(dp(1), accent)
     }
 
     private fun removeIsland() {
@@ -559,6 +595,7 @@ class MiMaxIslandService : NotificationListenerService() {
     override fun onDestroy() {
         if (batteryReceiverRegistered) runCatching { unregisterReceiver(batteryReceiver) }
         batteryReceiverRegistered = false
+        main.removeCallbacks(timerTicker)
         removeFloatingPanel()
         removeIsland()
         super.onDestroy()
@@ -573,7 +610,9 @@ class MiMaxIslandService : NotificationListenerService() {
 
 enum class IslandStyle { HIS, LTIN, COLOROS }
 
+
 object MiMaxIslandPreferences {
+    const val ACTION_TIMER_UPDATED = "app.lawnchair.mimax.TIMER_UPDATED"
     private const val PREFS = "mimax_launcher"
     private const val TEST_CHANNEL = "mimax_island_test"
     private const val TEST_NOTIFICATION_ID = 91427
