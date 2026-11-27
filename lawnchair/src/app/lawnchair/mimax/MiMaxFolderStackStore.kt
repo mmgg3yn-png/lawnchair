@@ -90,6 +90,80 @@ class MiMaxFolderStackStore(context: Context) {
         return true
     }
 
+    /**
+     * Adds two folders to one stack, merging any stacks that already contain
+     * either folder. A folder can belong to only one stack.
+     */
+    @Synchronized
+    fun mergeFolders(title: String, firstFolderId: Long, secondFolderId: Long): Stack? {
+        if (firstFolderId == INVALID_ID || secondFolderId == INVALID_ID
+            || firstFolderId == secondFolderId
+        ) return null
+
+        val stacks = getAll().toMutableList()
+        val matching = stacks.filter { stack ->
+            firstFolderId in stack.childFolderIds || secondFolderId in stack.childFolderIds
+        }
+        val orderedIds = mutableListOf<Long>()
+        matching.forEach { stack ->
+            stack.childFolderIds.forEach { id ->
+                if (id !in orderedIds) orderedIds.add(id)
+            }
+        }
+        if (firstFolderId !in orderedIds) orderedIds.add(firstFolderId)
+        if (secondFolderId !in orderedIds) orderedIds.add(secondFolderId)
+
+        val retained = matching.firstOrNull()
+        val merged = if (retained == null) {
+            Stack(
+                id = nextId(),
+                title = title.trim().ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH),
+                childFolderIds = orderedIds,
+                selectedIndex = 0
+            )
+        } else {
+            retained.copy(
+                title = retained.title.ifBlank {
+                    title.trim().ifEmpty { "Stack" }.take(MAX_TITLE_LENGTH)
+                },
+                childFolderIds = orderedIds,
+                selectedIndex = orderedIds.indexOf(
+                    retained.selectedFolderId() ?: orderedIds.first()
+                ).coerceAtLeast(0)
+            )
+        }
+
+        val matchingIds = matching.map { it.id }.toSet()
+        val result = stacks.filterNot { it.id in matchingIds }.toMutableList()
+        result.add(merged)
+        save(result)
+        return merged
+    }
+
+    /**
+     * Removes a deleted folder from every stack and drops stacks with fewer
+     * than two remaining folders.
+     */
+    @Synchronized
+    fun removeFolderFromAll(folderId: Long) {
+        if (folderId == INVALID_ID) return
+        val updated = getAll().mapNotNull { stack ->
+            val remaining = stack.childFolderIds.filterNot { it == folderId }
+            if (remaining.size < 2) {
+                null
+            } else {
+                val selectedId = stack.selectedFolderId()
+                stack.copy(
+                    childFolderIds = remaining,
+                    selectedIndex = remaining.indexOf(selectedId).let {
+                        if (it < 0) 0 else it
+                    }
+                )
+            }
+        }
+        save(updated)
+    }
+
     @Synchronized
     fun removeFolder(stackId: Long, folderId: Long): Stack? {
         val stacks = getAll().toMutableList()
