@@ -201,7 +201,7 @@ class MiMaxIslandService : NotificationListenerService() {
             ?: appLabel(sbn.packageName)
         val notificationMessage = (extras.getCharSequence("android.text")
             ?: extras.getCharSequence("android.bigText"))?.toString()?.take(180).orEmpty()
-        val mediaMetadata = mediaController?.metadata
+        val mediaMetadata = if (isCurrentMediaActivity(sbn)) mediaController?.metadata else null
         val eventPrefix = eventPrefix(sbn)
         val title = mediaMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
             ?.takeIf { it.isNotBlank() } ?: notificationTitle
@@ -283,7 +283,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 visibility = if (expanded && text.isNotBlank()) View.VISIBLE else View.GONE
             }
             island?.findViewWithTag<LinearLayout>("media_controls")?.visibility =
-                if (expanded && mediaController != null) View.VISIBLE else View.GONE
+                if (expanded && isCurrentMediaActivity(sbn)) View.VISIBLE else View.GONE
             island?.findViewWithTag<TextView>("media_play")?.text =
                 if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶"
             island?.findViewWithTag<LinearLayout>("notification_actions")?.let {
@@ -701,9 +701,17 @@ class MiMaxIslandService : NotificationListenerService() {
         return root
     }
 
-    private fun mediaArtwork(): android.graphics.Bitmap? =
-        mediaController?.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+    private fun isCurrentMediaActivity(sbn: StatusBarNotification?): Boolean {
+        val controller = mediaController ?: return false
+        return sbn != null && (sbn.packageName == controller.packageName ||
+            sbn.notification.category == Notification.CATEGORY_TRANSPORT)
+    }
+
+    private fun mediaArtwork(): android.graphics.Bitmap? {
+        if (!isCurrentMediaActivity(activeEvents[activeKey])) return null
+        return mediaController?.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: mediaController?.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+    }
 
     private fun activityIconBackground(sbn: StatusBarNotification?): android.graphics.drawable.Drawable {
         val art = if (style == IslandStyle.LTIN) mediaArtwork() else null
@@ -740,7 +748,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 text.contains("timer") || text.contains("مؤقت") -> "◷"
             text.contains("download") || text.contains("تحميل") || text.contains("تنزيل") -> "↓"
             category == Notification.CATEGORY_NAVIGATION -> "➤"
-            mediaController != null -> "♫"
+            isCurrentMediaActivity(sbn) -> "♫"
             text.contains("record") || text.contains("تسجيل") -> "●"
             else -> "●"
         }
