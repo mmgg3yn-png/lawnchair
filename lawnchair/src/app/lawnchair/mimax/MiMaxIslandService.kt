@@ -41,6 +41,7 @@ class MiMaxIslandService : NotificationListenerService() {
     private val main = Handler(Looper.getMainLooper())
     private var wm: WindowManager? = null
     private var island: LinearLayout? = null
+    private var floatingPanel: LinearLayout? = null
     private var activeKey: String? = null
     private val activeEvents = linkedMapOf<String, StatusBarNotification>()
     private var expanded = false
@@ -129,6 +130,8 @@ class MiMaxIslandService : NotificationListenerService() {
                 .ifBlank { notificationMessage }
         } else notificationMessage
         lastMessage = message
+        floatingPanel?.findViewWithTag<TextView>("float_title")?.text = title
+        floatingPanel?.findViewWithTag<TextView>("float_message")?.text = displayMessage()
         if (title.isBlank() && message.isBlank()) return
 
         main.removeCallbacks(dismiss)
@@ -408,6 +411,9 @@ class MiMaxIslandService : NotificationListenerService() {
         controls.addView(mediaButton("⏭", "media_next") {
             runCatching { mediaController?.transportControls?.skipToNext() }
         })
+        controls.addView(mediaButton("▣", "float_toggle") {
+            toggleFloatingPanel(title = island?.findViewWithTag<TextView>("title")?.text?.toString().orEmpty())
+        })
         content.addView(controls, LinearLayout.LayoutParams(-1, -2))
 
         if (content !== root) {
@@ -418,6 +424,61 @@ class MiMaxIslandService : NotificationListenerService() {
         root.scaleY = .82f
         root.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
         return root
+    }
+
+    private fun toggleFloatingPanel(title: String) {
+        if (floatingPanel != null) {
+            removeFloatingPanel()
+            return
+        }
+        if (!Settings.canDrawOverlays(this)) return
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            background = islandBackground()
+            elevation = dp(18).toFloat()
+            addView(TextView(this@MiMaxIslandService).apply {
+                tag = "float_title"
+                text = title
+                setTextColor(Color.WHITE)
+                textSize = 15f
+                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+                maxLines = 1
+            }, LinearLayout.LayoutParams(-1, -2))
+            addView(TextView(this@MiMaxIslandService).apply {
+                tag = "float_message"
+                text = displayMessage()
+                setTextColor(0xFFE6E6E6.toInt())
+                textSize = 12f
+                maxLines = 3
+                setPadding(0, dp(6), 0, dp(8))
+            }, LinearLayout.LayoutParams(-1, -2))
+            addView(TextView(this@MiMaxIslandService).apply {
+                text = "إغلاق النافذة  ×"
+                setTextColor(0xFFB9D7FF.toInt())
+                textSize = 12f
+                gravity = Gravity.END
+                isClickable = true
+                setOnClickListener { removeFloatingPanel() }
+            }, LinearLayout.LayoutParams(-1, -2))
+        }
+        val params = WindowManager.LayoutParams(
+            dp(280), WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.CENTER }
+        runCatching {
+            wm?.addView(panel, params)
+            floatingPanel = panel
+        }
+    }
+
+    private fun removeFloatingPanel() {
+        floatingPanel?.let { runCatching { wm?.removeView(it) } }
+        floatingPanel = null
     }
 
     private fun updateIslandSize(view: View) {
@@ -462,6 +523,7 @@ class MiMaxIslandService : NotificationListenerService() {
     }
 
     override fun onListenerDisconnected() {
+        removeFloatingPanel()
         removeIsland()
         super.onListenerDisconnected()
     }
@@ -469,6 +531,7 @@ class MiMaxIslandService : NotificationListenerService() {
     override fun onDestroy() {
         if (batteryReceiverRegistered) runCatching { unregisterReceiver(batteryReceiver) }
         batteryReceiverRegistered = false
+        removeFloatingPanel()
         removeIsland()
         super.onDestroy()
     }
