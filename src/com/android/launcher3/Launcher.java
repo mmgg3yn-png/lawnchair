@@ -2240,7 +2240,7 @@ public class Launcher extends StatefulActivity<LauncherState>
                         // and deleteAppWidgetId failures are handled inside ModelWriter.
                         final ModelWriter stackDeleteWriter = getModelWriter();
                         final LauncherWidgetHolder stackDeleteHolder = getAppWidgetHolder();
-                        MODEL_EXECUTOR.execute(() -> {
+                        com.android.launcher3.util.Executors.MODEL_EXECUTOR.execute(() -> {
                             WidgetStackInfo loaded = null;
                             try {
                                 SQLiteDatabase db = getModel().getModelDbController().getDb();
@@ -2249,7 +2249,7 @@ public class Launcher extends StatefulActivity<LauncherState>
                                 android.util.Log.w(TAG, "Failed to load stack info for deletion", e);
                             }
                             final WidgetStackInfo loadedFinal = loaded;
-                            MAIN_EXECUTOR.execute(() -> {
+                            com.android.launcher3.util.Executors.MAIN_EXECUTOR.execute(() -> {
                                 if (loadedFinal != null) {
                                     stackDeleteWriter.deleteWidgetStack(
                                             loadedFinal, stackDeleteHolder, reason);
