@@ -307,10 +307,17 @@ class MiMaxIslandService : NotificationListenerService() {
             extras.getInt("android.progressMax", 0) > 0
         val ongoing = sbn.isOngoing ||
             (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
+        val hasCallAction = notification.actions.orEmpty().any { action ->
+            val label = action.title?.toString()?.lowercase().orEmpty()
+            listOf("answer", "accept", "decline", "reject", "hang up", "رد", "قبول", "رفض").any(label::contains)
+        }
+        val callText = text.contains("incoming call") || text.contains("ongoing call") ||
+            text.contains("call in progress") || text.contains("مكالمة واردة") ||
+            text.contains("اتصال وارد") || text.contains("مكالمة جارية") ||
+            text.contains("مكالمة نشطة")
         return when {
-            category == Notification.CATEGORY_CALL ||
-                (ongoing && (text.contains("ongoing call") || text.contains("call in progress") ||
-                    text.contains("مكالمة جارية") || text.contains("مكالمة نشطة"))) -> "CALL"
+            category == Notification.CATEGORY_CALL || (hasCallAction && callText) ||
+                (ongoing && callText) -> "CALL"
             category == Notification.CATEGORY_NAVIGATION -> "NAVIGATION"
             category == Notification.CATEGORY_ALARM ||
                 category == Notification.CATEGORY_REMINDER -> "TIMER"
@@ -716,14 +723,15 @@ class MiMaxIslandService : NotificationListenerService() {
         }
     }
 
-    private fun activityEyebrow(sbn: StatusBarNotification?): String =
-        when (sbn?.notification?.category) {
-            Notification.CATEGORY_CALL -> if (sbn?.notification?.extras?.getBoolean("android.showChronometer", false) == true)
+    private fun activityEyebrow(sbn: StatusBarNotification?): String = when {
+        sbn != null && eventPrefix(sbn) == "CALL" ->
+            if (sbn.notification.extras.getBoolean("android.showChronometer", false))
                 "CALL IN PROGRESS" else "INCOMING CALL"
-            Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "LIVE TIMER"
-            Notification.CATEGORY_NAVIGATION -> "LIVE NAVIGATION"
-            else -> if (mediaController != null) "NOW PLAYING" else "LIVE ACTIVITY"
-        }
+        sbn != null && eventPrefix(sbn) == "TIMER" -> "LIVE TIMER"
+        sbn != null && eventPrefix(sbn) == "NAVIGATION" -> "LIVE NAVIGATION"
+        mediaController != null -> "NOW PLAYING"
+        else -> "LIVE ACTIVITY"
+    }
 
     private fun primaryActivityMessage(sbn: StatusBarNotification?): String {
         if (style != IslandStyle.COLOROS || sbn == null) return displayMessage()
@@ -736,12 +744,14 @@ class MiMaxIslandService : NotificationListenerService() {
         val sourceSubText = (extras?.getCharSequence("android.subText")
             ?: extras?.getCharSequence("android.summaryText"))?.toString()?.trim().orEmpty()
         if (sourceSubText.isNotBlank()) return sourceSubText.take(90)
-        return when (sbn?.notification?.category) {
-            Notification.CATEGORY_CALL -> if (sbn?.notification?.extras?.getBoolean("android.showChronometer", false) == true)
-                "مكالمة جارية" else "مكالمة واردة"
-            Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "المؤقت يعمل"
-            Notification.CATEGORY_NAVIGATION -> "التنقل نشط"
-            else -> if (mediaController != null) "تشغيل الوسائط" else "نشاط مباشر"
+        return when {
+            sbn != null && eventPrefix(sbn) == "CALL" ->
+                if (sbn.notification.extras.getBoolean("android.showChronometer", false))
+                    "مكالمة جارية" else "مكالمة واردة"
+            sbn != null && eventPrefix(sbn) == "TIMER" -> "المؤقت يعمل"
+            sbn != null && eventPrefix(sbn) == "NAVIGATION" -> "التنقل نشط"
+            mediaController != null -> "تشغيل الوسائط"
+            else -> "نشاط مباشر"
         }
     }
 
