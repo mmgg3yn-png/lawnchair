@@ -237,6 +237,16 @@ class MiMaxControlActivity : Activity() {
             Toast.makeText(this, "تمت إعادة إعدادات Dock", Toast.LENGTH_SHORT).show()
             render()
         }
+        addButton(if (launcherPrefs.hotseatBG.get()) "خلفية Dock: مفعّلة" else "خلفية Dock: متوقفة") {
+            launcherPrefs.hotseatBG.set(!launcherPrefs.hotseatBG.get())
+            render()
+        }
+        addButton("شفافية خلفية Dock: تبديل بين 70% و100%") {
+            val next = if (launcherPrefs.hotseatBGAlpha.get() <= 70) 100 else 70
+            launcherPrefs.hotseatBGAlpha.set(next)
+            Toast.makeText(this, "شفافية Dock: $next%", Toast.LENGTH_SHORT).show()
+            render()
+        }
         root.addView(TextView(this).apply {
             text = "محرر ثيم الجزيرة"
             textSize = 18f
