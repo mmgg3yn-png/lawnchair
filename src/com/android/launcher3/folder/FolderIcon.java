@@ -266,7 +266,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         // folders stay in Launcher data and can still be opened from the stack
         // selector, but are not shown as duplicate workspace icons.
         try {
-            MiMaxFolderStackStore.Stack stack = new MiMaxFolderStackStore(activity)
+            MiMaxFolderStackStore.Stack stack = new MiMaxFolderStackStore(icon.getContext())
                     .getAll().stream()
                     .filter(candidate -> candidate.getChildFolderIds().contains(folderInfo.id))
                     .findFirst().orElse(null);
