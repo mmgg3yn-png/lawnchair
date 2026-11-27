@@ -170,10 +170,10 @@ fun AppDrawerPreferences(
         val showDrawerLabels = prefs2.showIconLabelsInDrawer.getAdapter()
         PreferenceGroup(heading = stringResource(id = R.string.icons)) {
             SliderPreference(
-                label = stringResource(id = R.string.icon_sizes),
+                label = stringResource(id = R.string.mimax_super_icons_scale),
                 adapter = prefs2.drawerIconSizeFactor.getAdapter(),
                 step = 0.1f,
-                valueRange = 0.5F..1.5F,
+                valueRange = 0.5F..1.8F,
                 showAsPercentage = true,
             )
             SwitchPreference(
