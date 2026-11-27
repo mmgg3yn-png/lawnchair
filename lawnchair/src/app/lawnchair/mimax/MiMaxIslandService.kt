@@ -217,6 +217,9 @@ class MiMaxIslandService : NotificationListenerService() {
                 if (expanded && mediaController != null) View.VISIBLE else View.GONE
             island?.findViewWithTag<TextView>("media_play")?.text =
                 if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶"
+            island?.findViewWithTag<LinearLayout>("notification_actions")?.let {
+                populateNotificationActions(it)
+            }
             island?.background = islandBackground()
             island?.let { updateIslandSize(it) }
         }
@@ -283,6 +286,32 @@ class MiMaxIslandService : NotificationListenerService() {
                         state == PlaybackState.STATE_BUFFERING
                 }
         }.getOrNull()
+    }
+
+    private fun populateNotificationActions(container: LinearLayout) {
+        container.removeAllViews()
+        val actions = activeEvents[activeKey]?.notification?.actions.orEmpty().take(3)
+        if (actions.isEmpty()) {
+            container.visibility = View.GONE
+            return
+        }
+        actions.forEach { action ->
+            val label = action.title?.toString()?.take(18).orEmpty()
+            if (label.isNotBlank()) {
+                container.addView(TextView(this).apply {
+                    text = label
+                    textSize = 11f
+                    gravity = Gravity.CENTER
+                    setTextColor(0xFFB9D7FF.toInt())
+                    setPadding(dp(8), dp(5), dp(8), dp(5))
+                    isClickable = true
+                    setOnClickListener {
+                        runCatching { action.actionIntent?.send() }
+                    }
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+            }
+        }
+        container.visibility = if (container.childCount > 0) View.VISIBLE else View.GONE
     }
 
     private fun eventPositionLabel(): String {
@@ -471,6 +500,15 @@ class MiMaxIslandService : NotificationListenerService() {
             gravity = if (style == IslandStyle.COLOROS) Gravity.START else Gravity.CENTER
             visibility = View.GONE
         }, LinearLayout.LayoutParams(-1, -2))
+
+        val notificationActions = LinearLayout(this).apply {
+            tag = "notification_actions"
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        populateNotificationActions(notificationActions)
+        content.addView(notificationActions, LinearLayout.LayoutParams(-1, -2))
 
         val controls = LinearLayout(this).apply {
             tag = "media_controls"
