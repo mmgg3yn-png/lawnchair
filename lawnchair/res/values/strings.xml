@@ -323,6 +323,10 @@
     <string name="icon_shape_label">Icon shape</string>
     <string name="icon_sizes">Icon size</string>
     <string name="mimax_super_icons_scale">Super Icons scale</string>
+    <string name="mimax_super_icons_preset">Super Icons preset</string>
+    <string name="mimax_super_icons_preset_standard">Standard (100%)</string>
+    <string name="mimax_super_icons_preset_large">Large (140%)</string>
+    <string name="mimax_super_icons_preset_xlarge">Extra large (180%)</string>
 
     <string name="show_labels">Show labels</string>
     <string name="label_size">Label size</string>
