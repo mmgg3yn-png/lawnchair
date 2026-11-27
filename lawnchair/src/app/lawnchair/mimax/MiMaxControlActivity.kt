@@ -6,11 +6,9 @@ package app.lawnchair.mimax
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
-import java.io.ByteArrayOutputStream
-import android.content.Intent
 import android.content.ComponentName
 import android.net.Uri
+import java.io.ByteArrayOutputStream
 import android.os.Bundle
 import android.provider.Settings
 import android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
