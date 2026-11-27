@@ -52,6 +52,7 @@ import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
 import android.content.res.Resources;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 import android.graphics.PointF;
@@ -107,6 +108,7 @@ import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent;
+import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
@@ -142,6 +144,7 @@ import com.google.android.msdl.data.model.MSDLToken;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -160,6 +163,10 @@ import app.lawnchair.smartspace.model.LawnchairSmartspace;
 import app.lawnchair.smartspace.model.SmartspaceMode;
 import app.lawnchair.theme.drawable.DrawableTokens;
 import app.lawnchair.util.LawnchairUtilsKt;
+import app.lawnchair.widget.WidgetStackChangeListener;
+import app.lawnchair.widget.WidgetStackInfo;
+import app.lawnchair.widget.WidgetStackManager;
+import app.lawnchair.widget.WidgetStackView;
 
 /**
  * The workspace is a wide area with a wallpaper and a finite number of pages.
@@ -298,6 +305,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     private static final int DRAG_MODE_CREATE_FOLDER = 1;
     private static final int DRAG_MODE_ADD_TO_FOLDER = 2;
     private static final int DRAG_MODE_REORDER = 3;
+    private static final int DRAG_MODE_CREATE_WIDGET_STACK = 4;
+    private static final int DRAG_MODE_ADD_TO_WIDGET_STACK = 5;
     protected int mDragMode = DRAG_MODE_NONE;
     @Thunk
     int mLastReorderX = -1;
@@ -1392,6 +1401,16 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         Utilities.mapCoordInSelfToDescendant(container, this, mTempFXY);
         for (int i = 0; i < container.getChildCount(); i++) {
             View child = container.getChildAt(i);
+            
+            // Check for WidgetStackView (similar to smartspace)
+            if (child instanceof app.lawnchair.widget.WidgetStackView) {
+                boolean isOverStack = child.getLeft() <= mTempFXY[0] && child.getRight() >= mTempFXY[0]
+                        && child.getTop() <= mTempFXY[1] && child.getBottom() >= mTempFXY[1];
+                if (isOverStack) {
+                    return true;
+                }
+            }
+            
             Object tag = child.getTag();
             if (!(tag instanceof LauncherAppWidgetInfo))
                 continue;
@@ -1920,7 +1939,20 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     public void beginDragShared(View child, DragSource source, DragOptions options) {
+        // Ensure widget views stay visible when beginDragShared is called
+        // This prevents single widgets from disappearing when popup opens
+        // Check both view type AND tag - for single widgets, the view might be a placeholder/dummy
+        // but the tag will always be LauncherAppWidgetInfo if it's a widget
         Object dragObject = child.getTag();
+        // Stacks use a bitmap drag preview; the real view stays in the cell — do not force VISIBLE
+        // here or it overrides startDrag's INVISIBLE and looks like a duplicate under the preview.
+        final boolean isWidgetStack = child instanceof WidgetStackView;
+        boolean needsWidgetHostPreDragVisible =
+                (child instanceof com.android.launcher3.widget.LauncherAppWidgetHostView)
+                        || (!isWidgetStack && dragObject instanceof LauncherAppWidgetInfo);
+        if (needsWidgetHostPreDragVisible && child.getVisibility() != View.VISIBLE) {
+            child.setVisibility(View.VISIBLE);
+        }
         if (!(dragObject instanceof ItemInfo)) {
             String msg = "Drag started with a view that has no tag set. This "
                     + "will cause a crash (issue 11627249) down the line. "
@@ -2043,6 +2075,40 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     scale,
                     dragOptions);
         }
+        
+        // After DragController.startDrag, ensure widget is still visible
+        // If there's a preDragCondition, the drag hasn't actually started yet, so the widget
+        // should remain visible in the workspace. The DragView removes the widget from workspace
+        // immediately when created, but we need to reattach it back if drag hasn't started yet.
+        if (needsWidgetHostPreDragVisible && dragOptions.preDragCondition != null && dv != null) {
+            // There's a preDragCondition, so drag hasn't started yet - widget must stay visible
+            // The DragView has removed the widget from workspace, but we need it visible until drag starts
+            // Reattach the widget view back to the workspace immediately
+            dv.detachContentView(/* reattachToPreviousParent= */ true);
+            
+            // Ensure widget is visible after reattachment
+            // detachContentView sets visibility to INVISIBLE, so we need to restore it
+            if (child.getParent() != null) {
+                child.setVisibility(View.VISIBLE);
+            }
+            
+            // Post a runnable to double-check visibility after reattachment completes
+            final View widgetView = child; // Capture for inner class
+            child.post(new Runnable() {
+                @Override
+                public void run() {
+                    // If the real drag has already started, DragView owns the preview — do not
+                    // force the workspace copy visible (avoids flicker / duplicate widget chrome).
+                    if (!mDragController.isInPreDrag()) {
+                        return;
+                    }
+                    if (widgetView.getParent() != null && widgetView.getVisibility() != View.VISIBLE) {
+                        widgetView.setVisibility(View.VISIBLE);
+                    }
+                }
+            });
+        }
+        
         return dv;
     }
 
@@ -2099,6 +2165,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
 
             if (mAddToExistingFolderOnDrop && willAddToExistingUserFolder(d.dragInfo,
+                    dropTargetLayout, mTargetCell, distance)) {
+                return true;
+            }
+            
+            // Check for widget stack creation
+            if (mCreateWidgetStackOnDrop && willCreateWidgetStack(d.dragInfo,
+                    dropTargetLayout, mTargetCell, distance, true)) {
+                return true;
+            }
+
+            if (mAddToExistingWidgetStackOnDrop && willAddToExistingWidgetStack(d.dragInfo,
                     dropTargetLayout, mTargetCell, distance)) {
                 return true;
             }
@@ -2322,6 +2399,18 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     }
                     return;
                 }
+                
+                // If the item being dropped is a widget and the nearest drop
+                // cell also contains a widget, then create a widget stack with the two widgets.
+                if (createWidgetStackIfNecessary(cell, container, dropTargetLayout, mTargetCell,
+                        distance, false, d)
+                        || addToExistingWidgetStackIfNecessary(cell, dropTargetLayout, mTargetCell,
+                                distance, d, false)) {
+                    if (!mLauncher.isInState(EDIT_MODE)) {
+                        mLauncher.getStateManager().goToState(NORMAL, SPRING_LOADED_EXIT_DELAY);
+                    }
+                    return;
+                }
 
                 // Aside from the special case where we're dropping a shortcut onto a shortcut,
                 // we need to find the nearest cell location that is vacant
@@ -2441,7 +2530,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
                     if (pageIsVisible) {
                         onCompleteRunnable = getWidgetResizeFrameRunnable(options,
-                                (LauncherAppWidgetHostView) cell, cellLayout, forceWidgetResize);
+                                cell, cellLayout, forceWidgetResize);
                     }
                 }
             }
@@ -2528,15 +2617,29 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
     @Nullable
     private Runnable getWidgetResizeFrameRunnable(DragOptions options,
-            LauncherAppWidgetHostView hostView, CellLayout cellLayout, boolean force) {
-        AppWidgetProviderInfo pInfo = hostView.getAppWidgetInfo();
-        boolean shouldResize = (pInfo.resizeMode != AppWidgetProviderInfo.RESIZE_NONE) || force;
-        if (pInfo != null && shouldResize && !options.isAccessibleDrag) {
-            return () -> {
-                if (!isPageInTransition()) {
-                    AppWidgetResizeFrame.showForWidget(hostView, cellLayout);
-                }
-            };
+            View widgetView, CellLayout cellLayout, boolean force) {
+        if (widgetView instanceof LauncherAppWidgetHostView) {
+            LauncherAppWidgetHostView hostView = (LauncherAppWidgetHostView) widgetView;
+            AppWidgetProviderInfo pInfo = hostView.getAppWidgetInfo();
+            boolean shouldResize =
+                    (pInfo != null && pInfo.resizeMode != AppWidgetProviderInfo.RESIZE_NONE) || force;
+            if (pInfo != null && shouldResize && !options.isAccessibleDrag) {
+                return () -> {
+                    if (!isPageInTransition()) {
+                        AppWidgetResizeFrame.showForWidget(hostView, cellLayout);
+                    }
+                };
+            }
+        } else if (widgetView instanceof WidgetStackView) {
+            WidgetStackView stackView = (WidgetStackView) widgetView;
+            // Widget stacks are always resizable
+            if (!options.isAccessibleDrag) {
+                return () -> {
+                    if (!isPageInTransition()) {
+                        AppWidgetResizeFrame.showForWidgetStack(stackView, cellLayout);
+                    }
+                };
+            }
         }
         return null;
     }
@@ -2603,6 +2706,10 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             mCreateUserFolderOnDrop = true;
         } else if (mDragMode == DRAG_MODE_ADD_TO_FOLDER) {
             mAddToExistingFolderOnDrop = true;
+        } else if (mDragMode == DRAG_MODE_CREATE_WIDGET_STACK) {
+            mCreateWidgetStackOnDrop = true;
+        } else if (mDragMode == DRAG_MODE_ADD_TO_WIDGET_STACK) {
+            mAddToExistingWidgetStackOnDrop = true;
         }
 
         // Reset the previous drag target
@@ -2670,17 +2777,35 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 // as this feels to slow / unresponsive.
                 cleanupReorder(false);
                 cleanupFolderCreation();
+                cleanupWidgetStackDragPreview();
             } else if (dragMode == DRAG_MODE_ADD_TO_FOLDER) {
                 cleanupReorder(true);
                 cleanupFolderCreation();
+                cleanupWidgetStackDragPreview();
             } else if (dragMode == DRAG_MODE_CREATE_FOLDER) {
                 cleanupAddToFolder();
                 cleanupReorder(true);
+                cleanupWidgetStackDragPreview();
             } else if (dragMode == DRAG_MODE_REORDER) {
                 cleanupAddToFolder();
                 cleanupFolderCreation();
+                cleanupWidgetStackDragPreview();
+            } else if (dragMode == DRAG_MODE_CREATE_WIDGET_STACK) {
+                cleanupAddToFolder();
+                cleanupReorder(true);
+                cleanupFolderCreation();
+            } else if (dragMode == DRAG_MODE_ADD_TO_WIDGET_STACK) {
+                cleanupAddToFolder();
+                cleanupReorder(true);
+                cleanupFolderCreation();
             }
             mDragMode = dragMode;
+        }
+    }
+
+    private void cleanupWidgetStackDragPreview() {
+        if (mWidgetStackCreateBg != null) {
+            mWidgetStackCreateBg.animateToRest();
         }
     }
 
@@ -2800,6 +2925,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     reorderX, reorderY);
 
             if (mDragMode == DRAG_MODE_CREATE_FOLDER || mDragMode == DRAG_MODE_ADD_TO_FOLDER ||
+                    mDragMode == DRAG_MODE_CREATE_WIDGET_STACK || mDragMode == DRAG_MODE_ADD_TO_WIDGET_STACK ||
                     !nearestDropOccupied) {
                 if (mDragTargetLayout != null) {
                     mDragTargetLayout.revertTempState();
@@ -2991,6 +3117,11 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     || mDragMode == DRAG_MODE_CREATE_FOLDER)) {
                 setDragMode(DRAG_MODE_NONE);
             }
+            // Also reset widget stack drag modes when out of range
+            if ((mDragMode == DRAG_MODE_ADD_TO_WIDGET_STACK
+                    || mDragMode == DRAG_MODE_CREATE_WIDGET_STACK)) {
+                setDragMode(DRAG_MODE_NONE);
+            }
             return;
         }
 
@@ -3043,6 +3174,60 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             setDragMode(DRAG_MODE_NONE);
         }
         if (mDragMode == DRAG_MODE_CREATE_FOLDER && !userFolderPending) {
+            setDragMode(DRAG_MODE_NONE);
+        }
+    }
+
+    /**
+     * Manages feedback for widget stack creation during drag-over
+     */
+    private void manageWidgetStackFeedback(float distance, DragObject dragObject) {
+        if (distance > mDragTargetLayout.getFolderCreationRadius(mTargetCell)) {
+            if ((mDragMode == DRAG_MODE_ADD_TO_WIDGET_STACK
+                    || mDragMode == DRAG_MODE_CREATE_WIDGET_STACK)) {
+                setDragMode(DRAG_MODE_NONE);
+            }
+            return;
+        }
+
+        mDragOverWidgetView = mDragTargetLayout.getChildAt(mTargetCell[0], mTargetCell[1]);
+        ItemInfo info = dragObject.dragInfo;
+        boolean widgetStackPending = willCreateWidgetStack(info, mDragOverWidgetView, false);
+        if (mDragMode == DRAG_MODE_NONE && widgetStackPending) {
+            if (mDragOverWidgetView != null) {
+                mWidgetStackCreateBg = new PreviewBackground(getContext());
+                mWidgetStackCreateBg.setup(mLauncher, mLauncher, null,
+                        mDragOverWidgetView.getMeasuredWidth(), mDragOverWidgetView.getPaddingTop());
+                mWidgetStackCreateBg.isClipping = false;
+                mWidgetStackCreateBg.animateToAccept(
+                        mDragTargetLayout, mTargetCell[0], mTargetCell[1]);
+            }
+            mDragTargetLayout.clearDragOutlines();
+            setDragMode(DRAG_MODE_CREATE_WIDGET_STACK);
+            return;
+        }
+
+        boolean willAddToStack = willAddToExistingWidgetStack(info, mDragOverWidgetView);
+        if (willAddToStack && mDragMode == DRAG_MODE_NONE) {
+            if (mDragOverWidgetView != null) {
+                mWidgetStackCreateBg = new PreviewBackground(getContext());
+                mWidgetStackCreateBg.setup(mLauncher, mLauncher, null,
+                        mDragOverWidgetView.getMeasuredWidth(), mDragOverWidgetView.getPaddingTop());
+                mWidgetStackCreateBg.isClipping = false;
+                mWidgetStackCreateBg.animateToAccept(
+                        mDragTargetLayout, mTargetCell[0], mTargetCell[1]);
+            }
+            if (mDragTargetLayout != null) {
+                mDragTargetLayout.clearDragOutlines();
+            }
+            setDragMode(DRAG_MODE_ADD_TO_WIDGET_STACK);
+            return;
+        }
+
+        if (mDragMode == DRAG_MODE_ADD_TO_WIDGET_STACK && !willAddToStack) {
+            setDragMode(DRAG_MODE_NONE);
+        }
+        if (mDragMode == DRAG_MODE_CREATE_WIDGET_STACK && !widgetStackPending) {
             setDragMode(DRAG_MODE_NONE);
         }
     }
