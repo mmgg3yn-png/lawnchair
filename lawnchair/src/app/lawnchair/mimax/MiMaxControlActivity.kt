@@ -19,6 +19,7 @@ import android.text.InputType
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import app.lawnchair.preferences.PreferenceManager
 
 /** Native settings entry for Me Island and its Android permission prerequisites. */
 class MiMaxControlActivity : Activity() {
@@ -184,6 +185,47 @@ class MiMaxControlActivity : Activity() {
             )
         }
         root.addView(TextView(this).apply {
+            text = "ملفات الثيمات والأنماط"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        for (slot in 1..3) {
+            addButton("حفظ الإعدادات الحالية في النمط $slot") { saveProfile(slot) }
+            addButton("تطبيق النمط $slot") { applyProfile(slot) }
+        }
+        root.addView(TextView(this).apply {
+            text = "Dock والمجلدات"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        val launcherPrefs = PreferenceManager.getInstance(this)
+        addButton("صفحات Dock: ${launcherPrefs.dockPages.get()} — زيادة") {
+            val next = (launcherPrefs.dockPages.get() + 1).coerceAtMost(5)
+            launcherPrefs.dockPages.set(next)
+            Toast.makeText(this, "عدد صفحات Dock: $next", Toast.LENGTH_SHORT).show()
+            render()
+        }
+        addButton("صفحات Dock: تقليل") {
+            val next = (launcherPrefs.dockPages.get() - 1).coerceAtLeast(1)
+            launcherPrefs.dockPages.set(next)
+            Toast.makeText(this, "عدد صفحات Dock: $next", Toast.LENGTH_SHORT).show()
+            render()
+        }
+        addButton("صفوف Dock: تبديل بين صف و صفين") {
+            val next = if (launcherPrefs.hotseatRows.get() == 1) 2 else 1
+            launcherPrefs.hotseatRows.set(next)
+            Toast.makeText(this, "عدد صفوف Dock: $next", Toast.LENGTH_SHORT).show()
+            render()
+        }
+        addButton("إعادة Dock إلى صفحة واحدة وصف واحد") {
+            launcherPrefs.dockPages.set(1)
+            launcherPrefs.hotseatRows.set(1)
+            Toast.makeText(this, "تمت إعادة إعدادات Dock", Toast.LENGTH_SHORT).show()
+            render()
+        }
+        root.addView(TextView(this).apply {
             text = "محرر ثيم الجزيرة"
             textSize = 18f
             setTextColor(0xFFFFFFFF.toInt())
@@ -260,6 +302,51 @@ class MiMaxControlActivity : Activity() {
             textSize = 12f
             setPadding(0, dp(12), 0, 0)
         })
+    }
+
+    private fun saveProfile(slot: Int) {
+        val source = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+        val target = getSharedPreferences("mimax_profile_$slot", MODE_PRIVATE)
+        val launcherPrefs = PreferenceManager.getInstance(this)
+        target.edit()
+            .putString("island_style", source.getString("island_style", IslandStyle.HIS.name))
+            .putString("mt1_theme_name", source.getString("mt1_theme_name", "Mi_Max Theme"))
+            .putInt("mt1_accent_color", source.getInt("mt1_accent_color", 0xFF8C9BFF.toInt()))
+            .putInt("mt1_background_color", source.getInt("mt1_background_color", 0xF0181D2B.toInt()))
+            .putInt("mt1_corner_radius", source.getInt("mt1_corner_radius", 22))
+            .putInt("mt1_width", source.getInt("mt1_width", 320))
+            .putBoolean("island_reduce_motion", source.getBoolean("island_reduce_motion", false))
+            .putInt("island_animation_duration", source.getInt("island_animation_duration", 220))
+            .putInt("dock_pages", launcherPrefs.dockPages.get())
+            .putInt("dock_rows", launcherPrefs.hotseatRows.get())
+            .putBoolean("profile_saved", true)
+            .apply()
+        Toast.makeText(this, "تم حفظ النمط $slot", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun applyProfile(slot: Int) {
+        val source = getSharedPreferences("mimax_profile_$slot", MODE_PRIVATE)
+        if (!source.getBoolean("profile_saved", false)) {
+            Toast.makeText(this, "احفظ إعدادات في هذا النمط أولاً", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val target = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+        target.edit()
+            .putString("island_style", source.getString("island_style", IslandStyle.HIS.name))
+            .putString("mt1_theme_name", source.getString("mt1_theme_name", "Mi_Max Theme"))
+            .putInt("mt1_accent_color", source.getInt("mt1_accent_color", 0xFF8C9BFF.toInt()))
+            .putInt("mt1_background_color", source.getInt("mt1_background_color", 0xF0181D2B.toInt()))
+            .putInt("mt1_corner_radius", source.getInt("mt1_corner_radius", 22))
+            .putInt("mt1_width", source.getInt("mt1_width", 320))
+            .putBoolean("island_reduce_motion", source.getBoolean("island_reduce_motion", false))
+            .putInt("island_animation_duration", source.getInt("island_animation_duration", 220))
+            .apply()
+        val launcherPrefs = PreferenceManager.getInstance(this)
+        launcherPrefs.dockPages.set(source.getInt("dock_pages", 1).coerceIn(1, 5))
+        launcherPrefs.hotseatRows.set(source.getInt("dock_rows", 1).coerceIn(1, 2))
+        sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
+        Toast.makeText(this, "تم تطبيق النمط $slot", Toast.LENGTH_SHORT).show()
+        render()
     }
 
     private fun themePrefsMotionEnabled(): Boolean =
