@@ -101,7 +101,7 @@ fun showWidgetStackDialog(
                     // Delete removed widgets from database (lookups under lock; DB work is async on model thread)
                     val modelWriter = launcher.modelWriter
                     if (removedWidgets.isNotEmpty() && modelWriter != null) {
-                        val bgDataModel = launcher.model.getBgDataModel()
+                        val bgDataModel = launcher.model.bgDataModel
                         val toDelete = synchronized(bgDataModel) {
                             removedWidgets.mapNotNull { widgetId: Int ->
                                 bgDataModel.itemsIdMap.firstOrNull { itemInfo: ItemInfo ->
@@ -144,7 +144,7 @@ fun showWidgetStackDialog(
                         var existingStackView: WidgetStackView? = null
                         launcher.workspace?.let { workspace ->
                             workspace.mapOverItems(object : com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator {
-                                override fun evaluate(info: ItemInfo, v: android.view.View): Boolean {
+                                override fun evaluate(info: ItemInfo?, v: android.view.View): Boolean {
                                     if (v is WidgetStackView && info is LauncherAppWidgetInfo &&
                                         info.widgetStackId == finalStackInfo.stackId
                                     ) {
