@@ -42,6 +42,7 @@ import app.lawnchair.ui.preferences.components.NavigationActionPreference
 import app.lawnchair.ui.preferences.components.OverlayHandlerPreference
 import app.lawnchair.ui.preferences.components.controls.ClickablePreference
 import app.lawnchair.ui.preferences.components.controls.ListPreference
+import app.lawnchair.ui.preferences.components.controls.ListPreferenceEntry
 import app.lawnchair.ui.preferences.components.controls.SliderPreference
 import app.lawnchair.ui.preferences.components.controls.SwitchPreference
 import app.lawnchair.ui.preferences.components.layout.ExpandAndShrink
@@ -234,6 +235,24 @@ fun HomeScreenPreferences(
         }
         val homeScreenLabelsAdapter = prefs2.showIconLabelsOnHomeScreen.getAdapter()
         PreferenceGroup(heading = stringResource(id = R.string.icons)) {
+            ListPreference(
+                label = stringResource(id = R.string.mimax_super_icons_preset),
+                adapter = prefs2.homeIconSizeFactor.getAdapter(),
+                entries = listOf(
+                    ListPreferenceEntry(
+                        value = 1.0f,
+                        label = { context.getString(R.string.mimax_super_icons_preset_standard) },
+                    ),
+                    ListPreferenceEntry(
+                        value = 1.4f,
+                        label = { context.getString(R.string.mimax_super_icons_preset_large) },
+                    ),
+                    ListPreferenceEntry(
+                        value = 1.8f,
+                        label = { context.getString(R.string.mimax_super_icons_preset_xlarge) },
+                    ),
+                ),
+            )
             SliderPreference(
                 label = stringResource(id = R.string.mimax_super_icons_scale),
                 adapter = prefs2.homeIconSizeFactor.getAdapter(),
