@@ -35,26 +35,28 @@ object MiMaxExtensionManager {
             .getString(REGISTRY_KEY, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(raw)
+            val seenIds = mutableSetOf<String>()
             buildList {
                 for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
-                    val definition = MiMaxExtensionCodec.decode(
-                        item.getString("manifest").toByteArray(Charsets.UTF_8)
-                    )
-                    val grantsArray = item.optJSONArray("grantedPermissions") ?: JSONArray()
-                    val grants = buildSet {
-                        for (grantIndex in 0 until grantsArray.length()) {
-                            add(grantsArray.getString(grantIndex))
-                        }
-                    }.intersect(definition.permissions.toSet())
-                    add(
+                    val parsed = runCatching {
+                        val definition = MiMaxExtensionCodec.decode(
+                            item.getString("manifest").toByteArray(Charsets.UTF_8)
+                        )
+                        val grantsArray = item.optJSONArray("grantedPermissions") ?: JSONArray()
+                        val grants = buildSet {
+                            for (grantIndex in 0 until grantsArray.length()) {
+                                add(grantsArray.getString(grantIndex))
+                            }
+                        }.intersect(definition.permissions.toSet())
                         InstalledExtension(
                             definition = definition,
                             enabled = item.optBoolean("enabled", false),
                             grantedPermissions = grants,
                             lastError = item.optString("lastError", "").takeIf { it.isNotBlank() }
                         )
-                    )
+                    }.getOrNull() ?: continue
+                    if (seenIds.add(parsed.definition.id)) add(parsed)
                 }
             }
         }.getOrDefault(emptyList())
