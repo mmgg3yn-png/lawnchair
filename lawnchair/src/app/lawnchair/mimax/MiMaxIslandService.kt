@@ -628,7 +628,7 @@ enum class IslandStyle { HIS, LTIN, COLOROS }
 
 
 object MiMaxIslandPreferences {
-    const val MiMaxIslandPreferences.ACTION_TIMER_UPDATED = "app.lawnchair.mimax.TIMER_UPDATED"
+    const val ACTION_TIMER_UPDATED = "app.lawnchair.mimax.TIMER_UPDATED"
     private const val PREFS = "mimax_launcher"
     private const val TEST_CHANNEL = "mimax_island_test"
     private const val TEST_NOTIFICATION_ID = 91427
