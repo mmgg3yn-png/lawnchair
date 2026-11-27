@@ -14,7 +14,6 @@ import android.os.Handler
 import android.os.Looper
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
