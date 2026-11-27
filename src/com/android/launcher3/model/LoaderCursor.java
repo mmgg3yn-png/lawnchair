@@ -62,6 +62,7 @@ import com.android.launcher3.model.data.CollectionInfo;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.IconRequestInfo;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.shortcuts.ShortcutKey;
@@ -129,6 +130,7 @@ public class LoaderCursor extends CursorWrapper {
     private final int mRankIndex;
     private final int mOptionsIndex;
     private final int mAppWidgetSourceIndex;
+    private final int mWidgetStackIdIndex;
 
     private final PackageManager mPM;
 
@@ -188,6 +190,7 @@ public class LoaderCursor extends CursorWrapper {
         mRankIndex = getColumnIndexOrThrow(Favorites.RANK);
         mOptionsIndex = getColumnIndexOrThrow(Favorites.OPTIONS);
         mAppWidgetSourceIndex = getColumnIndexOrThrow(Favorites.APPWIDGET_SOURCE);
+        mWidgetStackIdIndex = getColumnIndex(Favorites.WIDGET_STACK_ID);
     }
 
     @Override
@@ -314,6 +317,13 @@ public class LoaderCursor extends CursorWrapper {
      */
     public int getAppWidgetSource() {
         return getInt(mAppWidgetSourceIndex);
+    }
+
+    /** Returns the nullable stack ID for a widget row. */
+    @Nullable
+    public Long getWidgetStackId() {
+        if (mWidgetStackIdIndex < 0 || isNull(mWidgetStackIdIndex)) return null;
+        return getLong(mWidgetStackIdIndex);
     }
 
     /**
@@ -573,7 +583,10 @@ public class LoaderCursor extends CursorWrapper {
             // cause the item loading to get skipped
             ShortcutKey.fromItemInfo(info);
         }
-        if (checkItemPlacement(info)) {
+        // Members of a widget stack intentionally share the anchor widget's grid cell.
+        boolean isWidgetStackMember = info instanceof LauncherAppWidgetInfo widget
+                && widget.widgetStackId != null;
+        if (isWidgetStackMember || checkItemPlacement(info)) {
             if (logger != null) {
                 logger.addLog(
                         Log.DEBUG,
