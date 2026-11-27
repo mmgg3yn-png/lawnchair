@@ -175,6 +175,11 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun show(sbn: StatusBarNotification) {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
+        if (MiMaxCrashRecovery.isDisabled(this)) {
+            removeIsland()
+            removeFloatingPanel()
+            return
+        }
         if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 .getBoolean("focus_mode_enabled", false)) {
             removeIsland()
@@ -212,7 +217,8 @@ class MiMaxIslandService : NotificationListenerService() {
 
         main.removeCallbacks(dismiss)
         if (island == null) {
-            island = makeView(title, message)
+            val islandView = makeView(title, message)
+            island = islandView
             val params = WindowManager.LayoutParams(
                 dp(220), dp(when (style) { IslandStyle.HIS -> 58; IslandStyle.LTIN -> 48; IslandStyle.COLOROS -> 54 }),
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -227,7 +233,19 @@ class MiMaxIslandService : NotificationListenerService() {
                 y = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                     .getInt("island_position_y", dp(8)).coerceAtLeast(dp(4))
             }
-            runCatching { wm?.addView(island, params) }.onFailure { island = null }
+            val windowManager = wm
+            if (windowManager != null) {
+                runCatching { windowManager.addView(islandView, params) }
+                    .onSuccess { MiMaxCrashRecovery.recordSuccess(this) }
+                    .onFailure { failure ->
+                        island = null
+                        if (MiMaxCrashRecovery.recordFailure(this, failure)) {
+                            removeFloatingPanel()
+                        }
+                    }
+            } else {
+                island = null
+            }
         } else {
             island?.findViewWithTag<TextView>("title")?.text = title
             island?.findViewWithTag<LinearLayout>("event_switcher")?.visibility =
@@ -609,6 +627,8 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun showStandaloneTimer() {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
+        if (MiMaxCrashRecovery.isDisabled(this)) return
+        val windowManager = wm ?: return
         if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 .getBoolean("focus_mode_enabled", false)) return
         style = MiMaxIslandPreferences.style(this)
@@ -632,10 +652,16 @@ class MiMaxIslandService : NotificationListenerService() {
             y = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 .getInt("island_position_y", dp(8)).coerceAtLeast(dp(4))
         }
-        runCatching { wm?.addView(view, params) }.onFailure { island = null }
+        runCatching { windowManager.addView(view, params) }
+            .onSuccess { MiMaxCrashRecovery.recordSuccess(this) }
+            .onFailure { failure ->
+                island = null
+                if (MiMaxCrashRecovery.recordFailure(this, failure)) removeFloatingPanel()
+            }
     }
 
     private fun toggleFloatingPanel(title: String) {
+        if (MiMaxCrashRecovery.isDisabled(this)) return
         if (floatingPanel != null) {
             removeFloatingPanel()
             return
@@ -707,10 +733,16 @@ class MiMaxIslandService : NotificationListenerService() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.CENTER }
-        runCatching {
-            wm?.addView(panel, params)
-            floatingPanel = panel
-        }
+        val windowManager = wm ?: return
+        runCatching { windowManager.addView(panel, params) }
+            .onSuccess {
+                floatingPanel = panel
+                MiMaxCrashRecovery.recordSuccess(this)
+            }
+            .onFailure { failure ->
+                floatingPanel = null
+                if (MiMaxCrashRecovery.recordFailure(this, failure)) removeIsland()
+            }
     }
 
     private fun removeFloatingPanel() {
