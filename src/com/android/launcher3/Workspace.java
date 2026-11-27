@@ -100,6 +100,7 @@ import com.android.launcher3.dragndrop.DraggableView;
 import com.android.launcher3.dragndrop.SpringLoadedDragController;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
+import app.lawnchair.mimax.MiMaxFolderStackStore;
 import com.android.launcher3.folder.PreviewBackground;
 import com.android.launcher3.graphics.DragPreviewProvider;
 import com.android.launcher3.icons.BitmapRenderer;
@@ -2282,6 +2283,35 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         if (v == null || hasntMoved || !mCreateUserFolderOnDrop) return false;
         mCreateUserFolderOnDrop = false;
         final int screenId = getCellLayoutId(target);
+
+        // Mi_Max: dropping one existing folder onto another creates a folder stack.
+        // FolderInfo records remain intact; the stack store records their relationship.
+        if (v.getTag() instanceof FolderInfo
+                && newView.getTag() instanceof FolderInfo) {
+            FolderInfo destinationFolder = (FolderInfo) v.getTag();
+            FolderInfo sourceFolder = (FolderInfo) newView.getTag();
+            if (destinationFolder.id != sourceFolder.id) {
+                MiMaxFolderStackStore store = new MiMaxFolderStackStore(getContext());
+                boolean alreadyStacked = store.getAll().stream().anyMatch(stack ->
+                        stack.getChildFolderIds().contains(destinationFolder.id)
+                                || stack.getChildFolderIds().contains(sourceFolder.id));
+                if (!alreadyStacked) {
+                    store.create(destinationFolder.title == null ? "Folder Stack"
+                                    : destinationFolder.title.toString(),
+                            java.util.Arrays.asList(destinationFolder.id, sourceFolder.id));
+                } else {
+                    MiMaxFolderStackStore.Stack existing = store.getAll().stream()
+                            .filter(stack -> stack.getChildFolderIds().contains(destinationFolder.id)
+                                    || stack.getChildFolderIds().contains(sourceFolder.id))
+                            .findFirst().orElse(null);
+                    if (existing != null) {
+                        store.addFolder(existing.getId(), destinationFolder.id);
+                        store.addFolder(existing.getId(), sourceFolder.id);
+                    }
+                }
+                return true;
+            }
+        }
 
         boolean aboveShortcut = Folder.willAccept(v.getTag());
         boolean willBecomeShortcut = Folder.willAccept(newView.getTag());
