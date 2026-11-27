@@ -41,6 +41,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.CheckLongPressHelper;
+import com.android.launcher3.touch.ItemLongClickListener;
 import com.android.launcher3.Flags;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
@@ -298,6 +299,7 @@ public class LauncherAppWidgetHostView extends BaseLauncherAppWidgetHostView
 
     @Override
     public void onTouchComplete() {
+        ItemLongClickListener.cancelScheduledWidgetMoveMode(this);
         if (!mLongPressHelper.hasPerformedLongPress()) {
             // If a long press has been performed, we don't want to clear the record of that since
             // we still may be receiving a touch up which we want to intercept
