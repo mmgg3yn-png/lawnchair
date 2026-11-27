@@ -45,6 +45,7 @@ class MiMaxIslandService : NotificationListenerService() {
     private var mediaController: MediaController? = null
     private val dismiss = Runnable { removeIsland() }
     private var lastMessage = ""
+    private var batteryStatusText = ""
     private var batteryReceiverRegistered = false
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -54,10 +55,9 @@ class MiMaxIslandService : NotificationListenerService() {
             val percent = if (level >= 0) (level * 100 / scale) else -1
             val plugged = intent.getIntExtra("plugged", 0) != 0
             val status = if (plugged) "Charging" else "Battery"
-            val batteryText = if (percent >= 0) "$status • $percent%" else status
+            batteryStatusText = if (percent >= 0) "$status • $percent%" else status
             island?.findViewWithTag<TextView>("message")?.let { view ->
-                val base = lastMessage
-                view.text = listOf(base, batteryText).filter { it.isNotBlank() }.joinToString("  •  ")
+                view.text = displayMessage()
                 view.visibility = if (expanded) View.VISIBLE else View.GONE
             }
         }
@@ -137,7 +137,7 @@ class MiMaxIslandService : NotificationListenerService() {
         } else {
             island?.findViewWithTag<TextView>("title")?.text = title
             island?.findViewWithTag<TextView>("message")?.apply {
-                text = message
+                text = displayMessage()
                 visibility = if (expanded && message.isNotBlank()) View.VISIBLE else View.GONE
             }
             island?.findViewWithTag<LinearLayout>("media_controls")?.visibility =
@@ -150,6 +150,9 @@ class MiMaxIslandService : NotificationListenerService() {
         if (!sbn.isOngoing && sbn.notification.category != "call" &&
             sbn.notification.category != "navigation") main.postDelayed(dismiss, 6500L)
     }
+
+    private fun displayMessage(): String =
+        listOf(lastMessage, batteryStatusText).filter { it.isNotBlank() }.joinToString("  •  ")
 
     private fun refreshMediaSession() {
         mediaController = runCatching {
