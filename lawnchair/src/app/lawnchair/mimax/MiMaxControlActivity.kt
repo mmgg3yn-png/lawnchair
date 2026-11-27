@@ -32,9 +32,14 @@ class MiMaxControlActivity : Activity() {
     private val requestExportMt1 = 7102
     private val requestImportBackup = 7103
     private val requestExportBackup = 7104
+    private val requestImportExtension = 7105
+    private val requestExportExtension = 7106
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (MiMaxExtensionManager.recoverIfPending(this)) {
+            Toast.makeText(this, "تمت استعادة آخر ثيم آمن بعد توقف سابق", Toast.LENGTH_LONG).show()
+        }
         render()
     }
 
@@ -201,6 +206,44 @@ class MiMaxControlActivity : Activity() {
                 }, requestExportMt1
             )
         }
+        root.addView(TextView(this).apply {
+            text = "الإضافات ومتجر الثيمات"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        addButton("إدارة الإضافات المثبتة") { showExtensionManager() }
+        addButton("فتح كتالوج القوالب المدمج") { showExtensionCatalog() }
+        addButton("استيراد إضافة MXE") {
+            startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/json"
+                }, requestImportExtension
+            )
+        }
+        addButton("تصدير الثيم الحالي كإضافة MXE") {
+            startActivityForResult(
+                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_TITLE, "MiMax-Theme-Extension.mxe")
+                }, requestExportExtension
+            )
+        }
+        addButton("استعادة آخر ثيم معروف السلامة") {
+            val restored = MiMaxExtensionManager.restoreLastKnownGood(this)
+            Toast.makeText(
+                this,
+                if (restored) "تمت استعادة آخر ثيم آمن" else "لا توجد نقطة استعادة محفوظة",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+        root.addView(TextView(this).apply {
+            text = "إضافات MXE الحالية إضافات ثيمات بياناتية فقط؛ لا تشغّل كوداً خارجياً. يتضمن النظام فحص التوافق والاعتماديات وصلاحية theme.apply والتحديث عبر استيراد إصدار أعلى."
+            textSize = 12f
+            setTextColor(0xFFB8B8C2.toInt())
+        })
         root.addView(TextView(this).apply {
             text = "النسخ الاحتياطي والاستعادة"
             textSize = 18f
@@ -608,6 +651,218 @@ class MiMaxControlActivity : Activity() {
             requestExportMt1 -> exportMt1(uri)
             requestImportBackup -> importBackup(uri)
             requestExportBackup -> exportBackup(uri)
+            requestImportExtension -> importExtension(uri)
+            requestExportExtension -> exportExtension(uri)
+        }
+    }
+
+    private fun importExtension(uri: Uri) {
+        runCatching {
+            val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= 1024 * 1024) { "ملف MXE كبير جداً" }
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            } ?: error("تعذر قراءة ملف الإضافة")
+            val definition = MiMaxExtensionCodec.decode(bytes)
+            val installed = MiMaxExtensionManager.install(this, definition)
+            Toast.makeText(
+                this,
+                "تم تثبيت/تحديث ${installed.definition.name}. فعّلها وامنح صلاحية الثيم قبل التطبيق.",
+                Toast.LENGTH_LONG
+            ).show()
+            render()
+            showExtensionActions(definition.id)
+        }.onFailure {
+            Toast.makeText(
+                this,
+                "تعذر تثبيت الإضافة: ${it.message ?: "ملف غير صالح"}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun exportExtension(uri: Uri) {
+        runCatching {
+            val definition = MiMaxExtensionManager.createCurrentThemeExtension(this)
+            val bytes = MiMaxExtensionCodec.encode(definition)
+            contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                ?: error("تعذر إنشاء ملف الإضافة")
+            Toast.makeText(this, "تم تصدير إضافة الثيم: ${definition.name}", Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(
+                this,
+                "فشل تصدير الإضافة: ${it.message ?: "خطأ غير معروف"}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun showExtensionManager() {
+        val installed = MiMaxExtensionManager.getAll(this)
+        if (installed.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("الإضافات المثبتة")
+                .setMessage("لا توجد إضافات مثبتة حالياً. افتح الكتالوج أو استورد ملف MXE.")
+                .setPositiveButton("فتح الكتالوج") { _, _ -> showExtensionCatalog() }
+                .setNegativeButton("إغلاق", null)
+                .show()
+            return
+        }
+        val labels = installed.map { extension ->
+            val state = if (extension.enabled) "مفعّلة" else "متوقفة"
+            "${extension.definition.name} • v${extension.definition.versionCode} • $state"
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("الإضافات المثبتة")
+            .setItems(labels) { _, index ->
+                showExtensionActions(installed[index].definition.id)
+            }
+            .setNeutralButton("الكتالوج") { _, _ -> showExtensionCatalog() }
+            .setNegativeButton("إغلاق", null)
+            .show()
+    }
+
+    private fun showExtensionCatalog() {
+        val catalog = MiMaxExtensionManager.catalog()
+        val labels = catalog.map { "${it.name} — ${it.description}" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("كتالوج قوالب Mi_Max")
+            .setItems(labels) { _, index ->
+                runCatching {
+                    val extension = MiMaxExtensionManager.installCatalogItem(
+                        this, catalog[index].id
+                    )
+                    if (!extension.enabled) {
+                        MiMaxExtensionManager.setEnabled(this, extension.definition.id, true)
+                    }
+                    Toast.makeText(this, "تمت إضافة ${extension.definition.name}", Toast.LENGTH_SHORT).show()
+                    showExtensionActions(extension.definition.id)
+                }.onFailure {
+                    Toast.makeText(this, "تعذر تثبيت القالب: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("إغلاق", null)
+            .show()
+    }
+
+    private fun showExtensionActions(id: String) {
+        val extension = MiMaxExtensionManager.getAll(this)
+            .firstOrNull { it.definition.id == id } ?: return
+        val hasPermission = MiMaxExtensionManager.PERMISSION_APPLY_THEME in
+            extension.grantedPermissions
+        val actions = arrayOf(
+            if (extension.enabled) "تعطيل الإضافة" else "تفعيل الإضافة",
+            if (hasPermission) "سحب صلاحية تطبيق الثيم" else "منح صلاحية تطبيق الثيم",
+            "تطبيق الثيم",
+            "إلغاء تثبيت الإضافة"
+        )
+        val details = buildString {
+            appendLine("المعرف: ${extension.definition.id}")
+            appendLine("الإصدار: ${extension.definition.versionCode}")
+            appendLine("الحالة: ${if (extension.enabled) "مفعّلة" else "متوقفة"}")
+            appendLine("الاعتماديات: ${extension.definition.dependencies.ifEmpty { listOf("لا يوجد") }.joinToString()}")
+            if (!extension.lastError.isNullOrBlank()) {
+                appendLine()
+                append("آخر خطأ: ${extension.lastError}")
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(extension.definition.name)
+            .setMessage(details)
+            .setItems(actions) { _, which ->
+                when (which) {
+                    0 -> runCatching {
+                        MiMaxExtensionManager.setEnabled(this, id, !extension.enabled)
+                        Toast.makeText(this, "تم تحديث حالة الإضافة", Toast.LENGTH_SHORT).show()
+                        showExtensionActions(id)
+                    }.onFailure {
+                        Toast.makeText(this, "تعذر تغيير الحالة: ${it.message}", Toast.LENGTH_LONG).show()
+                    }
+                    1 -> {
+                        if (hasPermission) {
+                            MiMaxExtensionManager.grantPermission(
+                                this, id, MiMaxExtensionManager.PERMISSION_APPLY_THEME, false
+                            )
+                            Toast.makeText(this, "تم سحب صلاحية الثيم", Toast.LENGTH_SHORT).show()
+                        } else {
+                            AlertDialog.Builder(this)
+                                .setTitle("منح صلاحية الإضافة")
+                                .setMessage("تحتاج الإضافة إلى صلاحية theme.apply لتغيير ثيم الجزيرة فقط. لن تحصل على صلاحية للوصول إلى الملفات أو الإشعارات.")
+                                .setPositiveButton("منح الصلاحية") { _, _ ->
+                                    runCatching {
+                                        MiMaxExtensionManager.grantPermission(
+                                            this, id, MiMaxExtensionManager.PERMISSION_APPLY_THEME, true
+                                        )
+                                    }.onFailure {
+                                        Toast.makeText(this, "تعذر منح الصلاحية: ${it.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                    showExtensionActions(id)
+                                }
+                                .setNegativeButton("إلغاء", null)
+                                .show()
+                        }
+                    }
+                    2 -> applyExtensionTheme(id)
+                    3 -> AlertDialog.Builder(this)
+                        .setMessage("هل تريد إلغاء تثبيت هذه الإضافة؟")
+                        .setPositiveButton("إلغاء التثبيت") { _, _ ->
+                            runCatching {
+                                MiMaxExtensionManager.uninstall(this, id)
+                                Toast.makeText(this, "تم إلغاء تثبيت الإضافة", Toast.LENGTH_SHORT).show()
+                                render()
+                            }.onFailure {
+                                Toast.makeText(this, "تعذر إلغاء التثبيت: ${it.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        .setNegativeButton("إلغاء", null)
+                        .show()
+                }
+            }
+            .setNegativeButton("إغلاق", null)
+            .show()
+    }
+
+    private fun applyExtensionTheme(id: String) {
+        val extension = MiMaxExtensionManager.getAll(this)
+            .firstOrNull { it.definition.id == id } ?: return
+        if (!extension.enabled) {
+            Toast.makeText(this, "فعّل الإضافة أولاً", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (MiMaxExtensionManager.PERMISSION_APPLY_THEME !in extension.grantedPermissions) {
+            AlertDialog.Builder(this)
+                .setTitle("صلاحية تطبيق الثيم")
+                .setMessage("ستتمكن هذه الإضافة من تغيير ألوان الجزيرة وأبعادها ونمطها فقط.")
+                .setPositiveButton("منح وتطبيق") { _, _ ->
+                    runCatching {
+                        MiMaxExtensionManager.grantPermission(
+                            this, id, MiMaxExtensionManager.PERMISSION_APPLY_THEME, true
+                        )
+                        MiMaxExtensionManager.applyTheme(this, id)
+                        Toast.makeText(this, "تم تطبيق ثيم الإضافة", Toast.LENGTH_LONG).show()
+                        render()
+                    }.onFailure {
+                        Toast.makeText(this, "فشل تطبيق الثيم: ${it.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton("إلغاء", null)
+                .show()
+            return
+        }
+        runCatching {
+            MiMaxExtensionManager.applyTheme(this, id)
+            Toast.makeText(this, "تم تطبيق ثيم الإضافة", Toast.LENGTH_LONG).show()
+            render()
+        }.onFailure {
+            Toast.makeText(this, "فشل تطبيق الثيم: ${it.message}", Toast.LENGTH_LONG).show()
         }
     }
 
