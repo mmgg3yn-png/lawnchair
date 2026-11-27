@@ -361,7 +361,7 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun updateActivityMessages() {
         island?.findViewWithTag<TextView>("message")?.let {
-            it.text = displayMessage()
+            it.text = primaryActivityMessage(activeEvents[activeKey])
             it.visibility = if (expanded) View.VISIBLE else View.GONE
         }
         floatingPanel?.findViewWithTag<TextView>("float_message")?.text = displayMessage()
