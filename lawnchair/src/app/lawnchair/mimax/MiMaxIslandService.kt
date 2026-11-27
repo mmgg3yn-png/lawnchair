@@ -545,7 +545,7 @@ class MiMaxIslandService : NotificationListenerService() {
             textSize = when (style) { IslandStyle.LTIN -> 16f; IslandStyle.HIS -> 17f; IslandStyle.COLOROS -> 15f }
             setTextColor(if (style == IslandStyle.LTIN) 0xFF050608.toInt() else Color.WHITE)
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            background = activityIconBackground(sbn)
+            background = activityIconBackground()
         }
         val iconSize = when (style) { IslandStyle.LTIN -> 24; IslandStyle.HIS -> 34; IslandStyle.COLOROS -> 30 }
         root.addView(iconTile, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)).apply {
