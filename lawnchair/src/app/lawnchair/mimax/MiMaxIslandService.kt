@@ -503,7 +503,7 @@ class MiMaxIslandService : NotificationListenerService() {
                             }
                         } else if (kotlin.math.abs(dx) > dp(28) && kotlin.math.abs(dy) < dp(24)) {
                             cycleEvent(if (dx < 0) 1 else -1)
-                        } else performClick()
+                        } else view.performClick()
                         true
                     }
                     android.view.MotionEvent.ACTION_CANCEL -> { dragging = false; true }
