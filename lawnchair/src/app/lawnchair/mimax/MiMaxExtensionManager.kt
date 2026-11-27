@@ -33,13 +33,13 @@ object MiMaxExtensionManager {
     fun getAll(context: Context): List<InstalledExtension> {
         val raw = context.getSharedPreferences(REGISTRY_PREFS, Context.MODE_PRIVATE)
             .getString(REGISTRY_KEY, null) ?: return emptyList()
-        return runCatching {
+        val parsed = runCatching {
             val array = JSONArray(raw)
             val seenIds = mutableSetOf<String>()
             buildList {
                 for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
-                    val parsed = runCatching {
+                    val entry = runCatching {
                         val definition = MiMaxExtensionCodec.decode(
                             item.getString("manifest").toByteArray(Charsets.UTF_8)
                         )
@@ -56,10 +56,60 @@ object MiMaxExtensionManager {
                             lastError = item.optString("lastError", "").takeIf { it.isNotBlank() }
                         )
                     }.getOrNull() ?: continue
-                    if (seenIds.add(parsed.definition.id)) add(parsed)
+                    if (seenIds.add(entry.definition.id)) add(entry)
                 }
             }
         }.getOrDefault(emptyList())
+        return normalizeDependencyState(parsed)
+    }
+
+    private fun normalizeDependencyState(
+        extensions: List<InstalledExtension>
+    ): List<InstalledExtension> {
+        val byId = extensions.associateBy { it.definition.id }
+        val graph = extensions.associate { it.definition.id to it.definition.dependencies }
+        val visiting = mutableListOf<String>()
+        val visited = mutableSetOf<String>()
+        val cyclic = mutableSetOf<String>()
+
+        fun visit(id: String) {
+            if (id in visiting) {
+                val cycleStart = visiting.indexOf(id)
+                if (cycleStart >= 0) cyclic.addAll(visiting.subList(cycleStart, visiting.size))
+                return
+            }
+            if (!visited.add(id)) return
+            visiting.add(id)
+            graph[id].orEmpty().forEach { dependency ->
+                if (dependency in graph) visit(dependency)
+            }
+            visiting.removeAt(visiting.lastIndex)
+        }
+        graph.keys.forEach(::visit)
+
+        val disabledIds = cyclic.toMutableSet()
+        var changed: Boolean
+        do {
+            changed = false
+            extensions.forEach { extension ->
+                if (extension.enabled && extension.definition.dependencies.any { dependency ->
+                        byId[dependency]?.enabled != true || dependency in disabledIds
+                    }
+                ) {
+                    if (disabledIds.add(extension.definition.id)) changed = true
+                }
+            }
+        } while (changed)
+
+        return extensions.map { extension ->
+            if (extension.enabled && extension.definition.id in disabledIds) {
+                extension.copy(
+                    enabled = false,
+                    lastError = extension.lastError
+                        ?: "تم إيقاف الإضافة بسبب اعتماد مفقود أو حلقة اعتماديات"
+                )
+            } else extension
+        }
     }
 
     fun catalog(): List<MiMaxExtensionCodec.Definition> = listOf(
