@@ -87,7 +87,7 @@ fun FolderPreferences(
                 label = stringResource(id = R.string.max_folder_rows),
                 adapter = prefs.folderRows.getAdapter(),
                 step = 1,
-                valueRange = 2..5,
+                valueRange = 1..6,
             )
         }
 
