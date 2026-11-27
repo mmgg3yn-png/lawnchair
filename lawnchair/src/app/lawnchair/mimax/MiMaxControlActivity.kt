@@ -24,6 +24,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import app.lawnchair.preferences.PreferenceManager
+import app.lawnchair.preferences2.PreferenceManager2
+import app.lawnchair.icons.shape.IconShape
+import com.patrykmichalik.opto.core.setBlocking
 
 /** Native settings entry for Me Island and its Android permission prerequisites. */
 class MiMaxControlActivity : Activity() {
@@ -474,6 +477,48 @@ class MiMaxControlActivity : Activity() {
                 gesturePrefs.panToMoveSensitivity.set(value)
                 Toast.makeText(this, "تم حفظ حساسية الحركة", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        root.addView(TextView(this).apply {
+            text = "استوديو الأيقونات — Super Icons"
+            textSize = 18f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+        })
+        val modernPreferences = PreferenceManager2.getInstance(this)
+        addButton("شكل أيقونات Xiaomi — Squircle") {
+            modernPreferences.iconShape.setBlocking(IconShape.Squircle)
+            Toast.makeText(this, "تم تطبيق شكل Squircle وإعادة تحميل الأيقونات", Toast.LENGTH_SHORT).show()
+        }
+        addButton("شكل أيقونات iPhone — Cupertino") {
+            modernPreferences.iconShape.setBlocking(IconShape.Cupertino)
+            Toast.makeText(this, "تم تطبيق شكل Cupertino", Toast.LENGTH_SHORT).show()
+        }
+        addButton("شكل أيقونات ColorOS — Rounded Square") {
+            modernPreferences.iconShape.setBlocking(IconShape.RoundedSquare)
+            Toast.makeText(this, "تم تطبيق شكل ColorOS", Toast.LENGTH_SHORT).show()
+        }
+        addButton("شكل دائري") {
+            modernPreferences.iconShape.setBlocking(IconShape.Circle)
+        }
+        addButton("شكل مربع") {
+            modernPreferences.iconShape.setBlocking(IconShape.Square)
+        }
+        addButton("حجم Super Icons: عادي 100%") {
+            modernPreferences.homeIconSizeFactor.setBlocking(1.0f)
+            Toast.makeText(this, "حجم الأيقونات 100%", Toast.LENGTH_SHORT).show()
+        }
+        addButton("حجم Super Icons: كبير 125%") {
+            modernPreferences.homeIconSizeFactor.setBlocking(1.25f)
+            Toast.makeText(this, "حجم الأيقونات 125%", Toast.LENGTH_SHORT).show()
+        }
+        addButton("حجم Super Icons: أكبر 150%") {
+            modernPreferences.homeIconSizeFactor.setBlocking(1.5f)
+            Toast.makeText(this, "حجم الأيقونات 150%", Toast.LENGTH_SHORT).show()
+        }
+        addButton("حجم Super Icons: ضخم 180%") {
+            modernPreferences.homeIconSizeFactor.setBlocking(1.8f)
+            Toast.makeText(this, "حجم الأيقونات 180%", Toast.LENGTH_SHORT).show()
         }
 
         root.addView(TextView(this).apply {
