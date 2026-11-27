@@ -163,6 +163,12 @@
             android:label="Me Island"
             android:theme="@style/Theme.Lawnchair" />
 
+        <activity
+            android:name="app.lawnchair.mimax.MiMaxRecoveryActivity"
+            android:exported="false"
+            android:label="Mi_Max Recovery"
+            android:theme="@style/Theme.Lawnchair" />
+
         <service
             android:name="app.lawnchair.mimax.MiMaxIslandService"
             android:label="Me Island"
