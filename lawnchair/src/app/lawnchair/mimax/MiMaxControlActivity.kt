@@ -190,6 +190,7 @@ class MiMaxControlActivity : Activity() {
             getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
                 .remove("island_position_x")
                 .remove("island_position_y")
+                .putBoolean("island_position_custom", false)
                 .apply()
             Toast.makeText(this, "سيُطبّق الموضع الافتراضي عند ظهور الجزيرة التالية", Toast.LENGTH_LONG).show()
         }
