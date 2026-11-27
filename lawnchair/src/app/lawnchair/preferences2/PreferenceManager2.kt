@@ -359,6 +359,11 @@ class PreferenceManager2 @Inject constructor(
         defaultValue = context.resources.getBoolean(R.bool.config_default_widget_unlimited_size),
     )
 
+    val widgetMoveHoldDuration = preference(
+        key = floatPreferencesKey(name = "widget_move_hold_duration"),
+        defaultValue = 2.5f,
+    )
+
     val showStatusBar = preference(
         key = booleanPreferencesKey(name = "show_status_bar"),
         defaultValue = context.resources.getBoolean(R.bool.config_default_show_status_bar),
