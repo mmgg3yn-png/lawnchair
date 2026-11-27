@@ -163,17 +163,23 @@ fun showWidgetStackDialog(
                             finalStackInfo.widgetIds.size == 1 -> {
                                 val remainingWidgetId = finalStackInfo.widgetIds.single()
                                 val liveStackView = existingStackView
-                                if (liveStackView != null) {
+                                val workspace = launcher.workspace
+                                if (liveStackView != null && workspace != null) {
                                     liveStackView.setStackInfo(finalStackInfo, widgetsToUpdate)
-                                    launcher.workspace?.collapseStackToSingleWidget(
+                                    workspace.collapseStackToSingleWidget(
                                         liveStackView,
                                         remainingWidgetId,
                                     )
                                 } else {
                                     // Recovery path for an editor opened while the live
-                                    // stack view is absent: restore the surviving widget
-                                    // row as a normal widget and clear stack metadata.
+                                    // stack view or workspace is absent: reload the surviving
+                                    // widget from the favorites row when it is not in BgDataModel.
                                     val survivor = widgetsToUpdate.firstOrNull()
+                                        ?: WidgetStackManager.loadLauncherAppWidgetInfoFromFavorites(
+                                            launcher,
+                                            launcher.model.modelDbController.db,
+                                            remainingWidgetId,
+                                        )
                                     if (survivor != null) {
                                         survivor.widgetStackId = null
                                         survivor.container = validContainer
