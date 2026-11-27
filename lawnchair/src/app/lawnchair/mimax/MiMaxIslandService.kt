@@ -67,6 +67,8 @@ class MiMaxIslandService : NotificationListenerService() {
                 }
                 ""
             }
+            if (remaining > 0L && island == null && activeKey == null) showStandaloneTimer()
+            if (remaining <= 0L && activeKey == null) removeIsland()
             updateActivityMessages()
             if (end > System.currentTimeMillis()) main.postDelayed(this, 1000L)
         }
@@ -77,6 +79,15 @@ class MiMaxIslandService : NotificationListenerService() {
             if (intent.action == MiMaxIslandPreferences.ACTION_TIMER_UPDATED) {
                 main.removeCallbacks(timerTicker)
                 timerTicker.run()
+                return
+            }
+            if (intent.action == MiMaxIslandPreferences.ACTION_THEME_UPDATED) {
+                style = MiMaxIslandPreferences.style(this@MiMaxIslandService)
+                island?.let { view ->
+                    view.background = islandBackground()
+                    updateIslandSize(view)
+                }
+                floatingPanel?.background = islandBackground()
                 return
             }
             if (intent.action == Intent.ACTION_TIME_TICK) {
@@ -105,6 +116,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 addAction(Intent.ACTION_BATTERY_CHANGED)
                 addAction(Intent.ACTION_TIME_TICK)
                 addAction(MiMaxIslandPreferences.ACTION_TIMER_UPDATED)
+                addAction(MiMaxIslandPreferences.ACTION_THEME_UPDATED)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -478,6 +490,32 @@ class MiMaxIslandService : NotificationListenerService() {
         return root
     }
 
+    private fun showStandaloneTimer() {
+        if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
+        style = MiMaxIslandPreferences.style(this)
+        val view = makeView("Timer", displayMessage())
+        island = view
+        val params = WindowManager.LayoutParams(
+            dp(220), dp(when (style) {
+                IslandStyle.HIS -> 58
+                IslandStyle.LTIN -> 48
+                IslandStyle.COLOROS -> 54
+            }),
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                .getInt("island_position_x", 0)
+            y = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                .getInt("island_position_y", dp(8)).coerceAtLeast(dp(4))
+        }
+        runCatching { wm?.addView(view, params) }.onFailure { island = null }
+    }
+
     private fun toggleFloatingPanel(title: String) {
         if (floatingPanel != null) {
             removeFloatingPanel()
@@ -629,6 +667,7 @@ enum class IslandStyle { HIS, LTIN, COLOROS }
 
 object MiMaxIslandPreferences {
     const val ACTION_TIMER_UPDATED = "app.lawnchair.mimax.TIMER_UPDATED"
+    const val ACTION_THEME_UPDATED = "app.lawnchair.mimax.THEME_UPDATED"
     private const val PREFS = "mimax_launcher"
     private const val TEST_CHANNEL = "mimax_island_test"
     private const val TEST_NOTIFICATION_ID = 91427
