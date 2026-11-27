@@ -262,7 +262,10 @@ class MiMaxIslandService : NotificationListenerService() {
             }
         } else {
             island?.findViewWithTag<TextView>("title")?.text = title
-            island?.findViewWithTag<TextView>("activity_icon")?.text = activityIcon(sbn)
+            island?.findViewWithTag<TextView>("activity_icon")?.apply {
+                text = if (style == IslandStyle.LTIN && mediaArtwork() != null) "" else activityIcon(sbn)
+                background = activityIconBackground(sbn)
+            }
             island?.findViewWithTag<TextView>("activity_eyebrow")?.text = activityEyebrow(sbn)
             island?.findViewWithTag<TextView>("activity_status")?.text = activityStatusLabel(sbn)
             island?.findViewWithTag<android.widget.ProgressBar>("activity_progress")?.let { bar ->
@@ -536,19 +539,12 @@ class MiMaxIslandService : NotificationListenerService() {
         // The three layouts are intentionally different, not just three background colours.
         val iconTile = TextView(this).apply {
             tag = "activity_icon"
-            text = activityIcon(sbn)
+            text = if (style == IslandStyle.LTIN && mediaArtwork() != null) "" else activityIcon(sbn)
             gravity = Gravity.CENTER
             textSize = when (style) { IslandStyle.LTIN -> 16f; IslandStyle.HIS -> 17f; IslandStyle.COLOROS -> 15f }
             setTextColor(if (style == IslandStyle.LTIN) 0xFF050608.toInt() else Color.WHITE)
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            background = GradientDrawable().apply {
-                setColor(when (style) {
-                    IslandStyle.LTIN -> accent
-                    IslandStyle.HIS -> 0xFF283653.toInt()
-                    IslandStyle.COLOROS -> accent
-                })
-                cornerRadius = dp(when (style) { IslandStyle.LTIN -> 50; IslandStyle.HIS -> 12; IslandStyle.COLOROS -> 9 }).toFloat()
-            }
+            background = activityIconBackground(sbn)
         }
         val iconSize = when (style) { IslandStyle.LTIN -> 24; IslandStyle.HIS -> 34; IslandStyle.COLOROS -> 30 }
         root.addView(iconTile, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)).apply {
@@ -703,6 +699,33 @@ class MiMaxIslandService : NotificationListenerService() {
         }
         applyIslandEnterAnimation(root)
         return root
+    }
+
+    private fun mediaArtwork(): android.graphics.Bitmap? =
+        mediaController?.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: mediaController?.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+
+    private fun activityIconBackground(sbn: StatusBarNotification?): android.graphics.drawable.Drawable {
+        val art = if (style == IslandStyle.LTIN) mediaArtwork() else null
+        if (art != null) return android.graphics.drawable.BitmapDrawable(resources, art)
+        val accent = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            .getInt("mt1_accent_color", when (style) {
+                IslandStyle.HIS -> 0xFF8EA8FF.toInt()
+                IslandStyle.LTIN -> 0xFF79E6A5.toInt()
+                IslandStyle.COLOROS -> 0xFF69D7C2.toInt()
+            })
+        return GradientDrawable().apply {
+            setColor(when (style) {
+                IslandStyle.LTIN -> accent
+                IslandStyle.HIS -> 0xFF283653.toInt()
+                IslandStyle.COLOROS -> accent
+            })
+            cornerRadius = dp(when (style) {
+                IslandStyle.LTIN -> 50
+                IslandStyle.HIS -> 12
+                IslandStyle.COLOROS -> 9
+            }).toFloat()
+        }
     }
 
     private fun activityIcon(sbn: StatusBarNotification?): String {
