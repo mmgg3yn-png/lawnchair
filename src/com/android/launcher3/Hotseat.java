@@ -62,6 +62,7 @@ import app.lawnchair.hotseat.DisabledHotseat;
 import app.lawnchair.hotseat.HotseatMode;
 import app.lawnchair.hotseat.HotseatPagedView;
 import app.lawnchair.hotseat.LawnchairHotseat;
+import app.lawnchair.widget.WidgetStackView;
 import app.lawnchair.preferences.PreferenceManager;
 import app.lawnchair.preferences2.PreferenceCacheExtensionsKt;
 import app.lawnchair.preferences2.PreferenceManager2;
@@ -101,6 +102,7 @@ public class Hotseat extends FrameLayout implements Insettable {
     private boolean mHasVerticalHotseat;
     private Workspace<?> mWorkspace;
     private boolean mSendTouchToWorkspace;
+    private boolean mTouchStartedOnWidgetStack;
     private boolean mSendTouchToPager;
     private final MultiValueAlpha mIconsAlphaChannels;
     private final MultiValueAlpha mQsbAlphaChannels;
@@ -452,8 +454,47 @@ public class Hotseat extends FrameLayout implements Insettable {
         return pagerEv;
     }
 
+    private boolean isTouchOverWidgetStack(MotionEvent ev) {
+        MotionEvent pagerEvent = obtainPagerEvent(ev);
+        try {
+            for (int pageIndex = 0; pageIndex < mPagedView.getChildCount(); pageIndex++) {
+                View page = mPagedView.getChildAt(pageIndex);
+                if (!(page instanceof CellLayout)) continue;
+                CellLayout cellLayout = (CellLayout) page;
+                ViewGroup icons = cellLayout.getShortcutsAndWidgets();
+                int x = (int) (pagerEvent.getX() - page.getLeft() - icons.getLeft());
+                int y = (int) (pagerEvent.getY() - page.getTop() - icons.getTop());
+                Rect hit = new Rect();
+                for (int i = icons.getChildCount() - 1; i >= 0; i--) {
+                    View child = icons.getChildAt(i);
+                    if (child instanceof WidgetStackView) {
+                        child.getHitRect(hit);
+                        if (hit.contains(x, y)) return true;
+                    }
+                }
+            }
+        } finally {
+            pagerEvent.recycle();
+        }
+        return false;
+    }
+
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
+        int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            mTouchStartedOnWidgetStack = isTouchOverWidgetStack(ev);
+            if (mTouchStartedOnWidgetStack) {
+                mSendTouchToPager = false;
+                mSendTouchToWorkspace = false;
+                return false;
+            }
+        } else if (mTouchStartedOnWidgetStack) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                mTouchStartedOnWidgetStack = false;
+            }
+            return false;
+        }
         int yThreshold = getMeasuredHeight() - getPaddingBottom();
         if (ev.getY() > yThreshold || isTouchOnQsb(ev)) {
             return false;
