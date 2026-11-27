@@ -293,6 +293,10 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import app.lawnchair.LawnchairApp;
+import app.lawnchair.widget.WidgetStackChangeListener;
+import app.lawnchair.widget.WidgetStackInfo;
+import app.lawnchair.widget.WidgetStackManager;
+import app.lawnchair.widget.WidgetStackView;
 
 /**
  * Default launcher application.
@@ -1543,6 +1547,19 @@ public class Launcher extends StatefulActivity<LauncherState>
             if (appWidgetInfo.provider == null)
                 return;
         }
+
+        // A stack picker records the target stack by provider before the widget ID exists.
+        WidgetStackInfo pendingStackInfo = null;
+        if (appWidgetInfo.provider != null) {
+            pendingStackInfo = WidgetStackManager.getAndRemovePendingStackInfoByProvider(
+                    appWidgetInfo.provider);
+            if (pendingStackInfo != null) {
+                WidgetStackManager.storePendingStackInfo(appWidgetId, pendingStackInfo);
+            } else {
+                pendingStackInfo = WidgetStackManager.getAndRemovePendingStackInfo(appWidgetId);
+            }
+        }
+
         LauncherAppWidgetInfo launcherInfo;
         launcherInfo =
                 new LauncherAppWidgetInfo(
@@ -1591,6 +1608,78 @@ public class Launcher extends StatefulActivity<LauncherState>
             launcherInfo.sourceContainer =
                     ((PendingRequestArgs) itemInfo).getWidgetSourceContainer();
         }
+        if (pendingStackInfo != null) {
+            launcherInfo.widgetStackId = pendingStackInfo.getStackId();
+            getModelWriter().addItemToDatabase(launcherInfo,
+                    itemInfo.container, presenterPos.screenId, presenterPos.cellX, presenterPos.cellY);
+
+            if (mWorkspace != null) {
+                CellLayout cellLayout = getCellLayout(
+                        pendingStackInfo.getContainer(), pendingStackInfo.getScreenId());
+                if (cellLayout != null) {
+                    ViewGroup widgetContainer = cellLayout.getShortcutsAndWidgets();
+                    WidgetStackView existingStack = null;
+                    for (int i = 0; i < widgetContainer.getChildCount(); i++) {
+                        View child = widgetContainer.getChildAt(i);
+                        if (child instanceof WidgetStackView && child.getTag() instanceof LauncherAppWidgetInfo) {
+                            LauncherAppWidgetInfo childInfo = (LauncherAppWidgetInfo) child.getTag();
+                            if (childInfo.widgetStackId != null
+                                    && Objects.equals(childInfo.widgetStackId, pendingStackInfo.getStackId())) {
+                                existingStack = (WidgetStackView) child;
+                                break;
+                            }
+                        }
+                    }
+                    if (existingStack != null) {
+                        existingStack.addWidget(launcherInfo);
+                    } else {
+                        int firstWidgetId = pendingStackInfo.getWidgetIds().get(0);
+                        View firstWidgetView = null;
+                        LauncherAppWidgetInfo firstWidgetInfo = null;
+                        for (int i = 0; i < widgetContainer.getChildCount(); i++) {
+                            View child = widgetContainer.getChildAt(i);
+                            if (child.getTag() instanceof LauncherAppWidgetInfo
+                                    && !(child instanceof WidgetStackView)) {
+                                LauncherAppWidgetInfo info = (LauncherAppWidgetInfo) child.getTag();
+                                if (info.appWidgetId == firstWidgetId) {
+                                    firstWidgetView = child;
+                                    firstWidgetInfo = info;
+                                    break;
+                                }
+                            }
+                        }
+                        if (firstWidgetView != null && firstWidgetInfo != null) {
+                            firstWidgetInfo.widgetStackId = pendingStackInfo.getStackId();
+                            firstWidgetInfo.container = pendingStackInfo.getContainer();
+                            firstWidgetInfo.sourceContainer = pendingStackInfo.getContainer();
+                            getModelWriter().updateItemInDatabase(firstWidgetInfo);
+                            cellLayout.removeView(firstWidgetView);
+
+                            WidgetStackView stackView = new WidgetStackView(this);
+                            stackView.setTag(firstWidgetInfo);
+                            mWorkspace.addInScreen(stackView, pendingStackInfo.getContainer(),
+                                    pendingStackInfo.getScreenId(), pendingStackInfo.getCellX(),
+                                    pendingStackInfo.getCellY(), pendingStackInfo.getSpanX(),
+                                    pendingStackInfo.getSpanY());
+                            WidgetStackInfo firstOnly = new WidgetStackInfo(
+                                    pendingStackInfo.getStackId(),
+                                    java.util.Collections.singletonList(firstWidgetInfo.appWidgetId),
+                                    0, false, pendingStackInfo.getContainer(),
+                                    pendingStackInfo.getScreenId(), pendingStackInfo.getCellX(),
+                                    pendingStackInfo.getCellY(), pendingStackInfo.getSpanX(),
+                                    pendingStackInfo.getSpanY());
+                            stackView.setStackInfo(firstOnly,
+                                    java.util.Collections.singletonList(firstWidgetInfo));
+                            stackView.addWidget(launcherInfo);
+                            bindWidgetStackChangeListener(stackView, mWorkspace);
+                        }
+                    }
+                }
+            }
+            WidgetStackManager.clearPendingStackInfo(appWidgetId);
+            return;
+        }
+
         getModelWriter().addItemToDatabase(launcherInfo,
                 itemInfo.container, presenterPos.screenId, presenterPos.cellX, presenterPos.cellY);
 
@@ -3203,6 +3292,21 @@ public class Launcher extends StatefulActivity<LauncherState>
     @Nullable
     public ArrowPopup<?> getOptionsPopup() {
         return findViewById(R.id.popup_container);
+    }
+
+    private void bindWidgetStackChangeListener(
+            WidgetStackView stackView, Workspace<?> workspace) {
+        stackView.setStackChangeListener(new WidgetStackChangeListener() {
+            @Override
+            public void onStackShouldCollapse(WidgetStackView view, int remainingWidgetId) {
+                workspace.collapseStackToSingleWidget(view, remainingWidgetId);
+            }
+
+            @Override
+            public void onStackChanged(WidgetStackView view) {
+                workspace.requestLayout();
+            }
+        });
     }
 
     @Override
