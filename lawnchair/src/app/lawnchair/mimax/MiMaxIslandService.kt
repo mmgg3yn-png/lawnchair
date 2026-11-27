@@ -318,9 +318,10 @@ class MiMaxIslandService : NotificationListenerService() {
             text.contains("call in progress") || text.contains("مكالمة واردة") ||
             text.contains("اتصال وارد") || text.contains("مكالمة جارية") ||
             text.contains("مكالمة نشطة")
+        val hasCallChronometer = extras.getBoolean("android.showChronometer", false)
         return when {
-            category == Notification.CATEGORY_CALL || (hasCallAction && callText) ||
-                (ongoing && callText) -> "CALL"
+            (category == Notification.CATEGORY_CALL && (ongoing || hasCallAction || hasCallChronometer)) ||
+                (hasCallAction && callText) || (ongoing && callText) -> "CALL"
             category == Notification.CATEGORY_NAVIGATION -> "NAVIGATION"
             category == Notification.CATEGORY_ALARM ||
                 category == Notification.CATEGORY_REMINDER -> "TIMER"
@@ -375,7 +376,7 @@ class MiMaxIslandService : NotificationListenerService() {
         } else {
             "%02d:%02d".format(Locale.getDefault(), seconds / 60L, seconds % 60L)
         }
-        val isCall = notification.category == Notification.CATEGORY_CALL
+        val isCall = eventPrefix(sbn) == "CALL"
         return (if (countdown) "Timer" else if (isCall) "Call" else "Elapsed") + " • " + clock
     }
 
