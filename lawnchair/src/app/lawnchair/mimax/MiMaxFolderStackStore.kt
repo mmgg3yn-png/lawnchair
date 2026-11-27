@@ -45,17 +45,13 @@ class MiMaxFolderStackStore(context: Context) {
                     val stackId = item.optLong("id", INVALID_ID)
                     if (stackId <= 0L || any { it.id == stackId }) continue
                     val children = item.optJSONArray("children") ?: JSONArray()
-                    val ids = buildList {
+                    val candidates = buildList {
                         for (j in 0 until children.length()) {
                             val folderId = children.optLong(j, INVALID_ID)
-                            if (folderId != INVALID_ID &&
-                                folderId !in this &&
-                                claimedFolderIds.add(folderId)
-                            ) {
-                                add(folderId)
-                            }
+                            if (folderId != INVALID_ID && folderId !in this) add(folderId)
                         }
                     }
+                    val ids = candidates.filter { claimedFolderIds.add(it) }
                     // A stack with fewer than two valid folders is not a stack.
                     if (ids.size >= 2) {
                         val rawTitle = item.optString("title", "Stack").trim()
@@ -281,10 +277,12 @@ class MiMaxFolderStackStore(context: Context) {
         val array = JSONArray()
         stacks.forEach { stack ->
             if (stack.id <= 0L || !stackIds.add(stack.id)) return@forEach
-            val ids = stack.childFolderIds.filter { id ->
-                id != INVALID_ID && claimedFolderIds.add(id)
-            }
+            val candidates = stack.childFolderIds
+                .filter { it != INVALID_ID }
+                .distinct()
+            val ids = candidates.filter { it !in claimedFolderIds }
             if (ids.size < 2) return@forEach
+            claimedFolderIds.addAll(ids)
             val selectedId = stack.selectedFolderId()
             val selectedIndex = ids.indexOf(selectedId).let {
                 if (it < 0) 0 else it
