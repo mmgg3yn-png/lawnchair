@@ -4405,7 +4405,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
      * @param stackView The WidgetStackView to collapse
      * @param remainingWidgetId The widget ID that should remain as a single widget
      */
-    void collapseStackToSingleWidget(WidgetStackView stackView, int remainingWidgetId) {
+    public void collapseStackToSingleWidget(WidgetStackView stackView, int remainingWidgetId) {
         if (stackView == null) return;
 
         // Get the stack info and widget info
