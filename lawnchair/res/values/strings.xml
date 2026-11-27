@@ -327,6 +327,12 @@
     <string name="mimax_super_icons_preset_standard">Standard (100%)</string>
     <string name="mimax_super_icons_preset_large">Large (140%)</string>
     <string name="mimax_super_icons_preset_xlarge">Extra large (180%)</string>
+    <string name="mimax_super_icon_normal">Super Icon: Standard 1×1</string>
+    <string name="mimax_super_icon_wide">Super Icon: Wide 2×1</string>
+    <string name="mimax_super_icon_tall">Super Icon: Tall 1×2</string>
+    <string name="mimax_super_icon_large">Super Icon: Large 2×2</string>
+    <string name="mimax_super_icon_resize_unavailable">This icon cannot be resized here</string>
+    <string name="mimax_super_icon_no_space">Not enough free space for this icon size</string>
 
     <string name="show_labels">Show labels</string>
     <string name="label_size">Label size</string>
