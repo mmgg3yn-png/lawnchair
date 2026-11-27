@@ -4430,6 +4430,42 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
 
+    /** Returns true when the requested widget is currently represented by a visible stack. */
+    public boolean isAppWidgetIdInDisplayedWidgetStack(int appWidgetId) {
+        for (int page = 0; page < getChildCount(); page++) {
+            View pageView = getChildAt(page);
+            if (!(pageView instanceof CellLayout)) continue;
+            ViewGroup container = ((CellLayout) pageView).getShortcutsAndWidgets();
+            for (int i = 0; i < container.getChildCount(); i++) {
+                View child = container.getChildAt(i);
+                if (child instanceof WidgetStackView) {
+                    WidgetStackInfo info = ((WidgetStackView) child).getStackInfo();
+                    if (info != null && info.getWidgetIds().contains(appWidgetId)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Refreshes a pending member after its configuration activity completes. */
+    public void onAppWidgetConfigureCompletedInStack(int appWidgetId) {
+        for (int page = 0; page < getChildCount(); page++) {
+            View pageView = getChildAt(page);
+            if (!(pageView instanceof CellLayout)) continue;
+            ViewGroup container = ((CellLayout) pageView).getShortcutsAndWidgets();
+            for (int i = 0; i < container.getChildCount(); i++) {
+                View child = container.getChildAt(i);
+                if (child instanceof WidgetStackView) {
+                    WidgetStackInfo info = ((WidgetStackView) child).getStackInfo();
+                    if (info != null && info.getWidgetIds().contains(appWidgetId)) {
+                        ((WidgetStackView) child).onAppWidgetConfigureCompleted(appWidgetId);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     public LauncherAppWidgetHostView getWidgetForAppWidgetId(final int appWidgetId) {
         return (LauncherAppWidgetHostView) mapOverItems((info, v) ->
                 (info instanceof LauncherAppWidgetInfo lawi) && lawi.appWidgetId == appWidgetId);
