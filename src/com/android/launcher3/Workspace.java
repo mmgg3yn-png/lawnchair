@@ -4635,8 +4635,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 }
                 boolean isAnchor = owner == null || owner.getChildFolderIds().size() < 2
                         || owner.getChildFolderIds().get(0) == folderInfo.id;
-                folderIcon.setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
-                folderIcon.invalidate();
+                folderIcon.refreshMiMaxStackPresentation(
+                        owner == null ? null : owner.getTitle(), isAnchor);
             }
             return false;
         });
@@ -4662,8 +4662,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 }
                 boolean isAnchor = owner == null || owner.getChildFolderIds().size() < 2
                         || owner.getChildFolderIds().get(0) == folderInfo.id;
-                folderIcon.setVisibility(isAnchor ? View.VISIBLE : View.INVISIBLE);
-                folderIcon.invalidate();
+                folderIcon.refreshMiMaxStackPresentation(
+                        owner == null ? null : owner.getTitle(), isAnchor);
             }
             return false;
         });
