@@ -2235,6 +2235,12 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             return false;
         }
 
+        // Mi_Max stacked-folder creation is a separate drop target from
+        // adding an app shortcut into a regular folder.
+        if (dropOverView.getTag() instanceof FolderInfo && info instanceof FolderInfo) {
+            return ((FolderInfo) dropOverView.getTag()).id != ((FolderInfo) info).id;
+        }
+
         boolean aboveShortcut = Folder.willAccept(dropOverView.getTag())
                 && ((ItemInfo) dropOverView.getTag()).container != CONTAINER_HOTSEAT_PREDICTION;
         boolean willBecomeShortcut = FolderInfo.willAcceptItemType(info.itemType);
