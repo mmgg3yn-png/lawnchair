@@ -226,8 +226,8 @@ android {
         }
 
         debug {
-            applicationIdSuffix ".debug"
-            resValue("string", "derived_app_name", "Lawnchair (Debug)")
+            // Keep the same stable application ID in debug and release builds.
+            resValue("string", "derived_app_name", "Mi_Max Launcher")
 
             manifestPlaceholders.quickstepMinSdk = "0"
             manifestPlaceholders.quickstepMaxSdk = "100000"
@@ -236,7 +236,7 @@ android {
         }
 
         release {
-            resValue("string", "derived_app_name", "Lawnchair")
+            resValue("string", "derived_app_name", "Mi_Max Launcher")
             minifyEnabled true
             shrinkResources true
             pseudoLocalesEnabled false
@@ -267,7 +267,7 @@ android {
         }
 
         github {
-            applicationId 'app.lawnchair'
+            applicationId 'com.mimax.lu'
             dimension "channel"
         }
 
