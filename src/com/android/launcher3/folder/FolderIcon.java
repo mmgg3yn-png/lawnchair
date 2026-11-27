@@ -298,9 +298,12 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                     .getAll().stream()
                     .filter(candidate -> candidate.getChildFolderIds().contains(folderInfo.id))
                     .findFirst().orElse(null);
-            if (stack != null && stack.getChildFolderIds().size() > 1
-                    && stack.getChildFolderIds().get(0) != folderInfo.id) {
-                icon.setVisibility(View.INVISIBLE);
+            if (stack != null && stack.getChildFolderIds().size() > 1) {
+                if (stack.getChildFolderIds().get(0) != folderInfo.id) {
+                    icon.setVisibility(View.INVISIBLE);
+                } else if (icon.mFolderName != null) {
+                    icon.mFolderName.setText(stack.getTitle());
+                }
             }
         } catch (RuntimeException ignored) {
             // A persistence read failure must never prevent normal folder binding.
