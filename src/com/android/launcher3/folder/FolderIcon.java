@@ -791,6 +791,12 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     }
 
     public void onItemsChanged(boolean animate) {
+        // Launcher replaces a folder icon with its final item when one or fewer
+        // children remain. Remove that folder ID from Mi_Max stacks at the same
+        // lifecycle point so stacks never point at a folder that no longer exists.
+        if (mInfo != null && mInfo.getContents().size() <= 1) {
+            new MiMaxFolderStackStore(getContext()).removeFolderFromAll(mInfo.id);
+        }
         updatePreviewItems(false);
         updateDotInfo();
         setContentDescription(getAccessiblityTitle(mInfo.title));
