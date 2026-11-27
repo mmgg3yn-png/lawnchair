@@ -228,10 +228,16 @@ class MiMaxIslandService : NotificationListenerService() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                x = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
-                    .getInt("island_position_x", 0)
-                y = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
-                    .getInt("island_position_y", dp(8)).coerceAtLeast(dp(4))
+                val positionPrefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                val customPosition = positionPrefs.getBoolean("island_position_custom", false)
+                x = if (customPosition) positionPrefs.getInt("island_position_x", 0)
+                    else defaultIslandXOffset()
+                y = if (customPosition) positionPrefs.getInt("island_position_y", dp(8))
+                    else defaultIslandYOffset(when (style) {
+                        IslandStyle.HIS -> 58
+                        IslandStyle.LTIN -> 48
+                        IslandStyle.COLOROS -> 54
+                    })
             }
             val windowManager = wm
             if (windowManager != null) {
@@ -423,6 +429,7 @@ class MiMaxIslandService : NotificationListenerService() {
                                 getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE).edit()
                                     .putInt("island_position_x", params.x)
                                     .putInt("island_position_y", params.y)
+                                    .putBoolean("island_position_custom", true)
                                     .apply()
                             }
                         } else if (kotlin.math.abs(dx) > dp(28) && kotlin.math.abs(dy) < dp(24)) {
@@ -644,10 +651,16 @@ class MiMaxIslandService : NotificationListenerService() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
-                .getInt("island_position_x", 0)
-            y = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
-                .getInt("island_position_y", dp(8)).coerceAtLeast(dp(4))
+            val positionPrefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            val customPosition = positionPrefs.getBoolean("island_position_custom", false)
+            x = if (customPosition) positionPrefs.getInt("island_position_x", 0)
+                else defaultIslandXOffset()
+            y = if (customPosition) positionPrefs.getInt("island_position_y", dp(8))
+                else defaultIslandYOffset(when (style) {
+                    IslandStyle.HIS -> 58
+                    IslandStyle.LTIN -> 48
+                    IslandStyle.COLOROS -> 54
+                })
         }
         runCatching { windowManager.addView(view, params) }
             .onSuccess { MiMaxCrashRecovery.recordSuccess(this) }
@@ -795,6 +808,37 @@ class MiMaxIslandService : NotificationListenerService() {
             }
         }
         enter.start()
+    }
+
+    /**
+     * Aligns the island's center with the largest top-edge display cutout when Android exposes
+     * its geometry. User-dragged positions take precedence and are persisted separately.
+     */
+    private fun defaultIslandXOffset(): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return 0
+        return runCatching {
+            val manager = getSystemService(WINDOW_SERVICE) as WindowManager
+            val metrics = manager.currentWindowMetrics
+            val cutout = metrics.windowInsets.displayCutout
+            val rect = cutout?.boundingRects
+                ?.filter { it.top <= dp(100) }
+                ?.maxByOrNull { it.width().toLong() * it.height().toLong() }
+                ?: return 0
+            rect.centerX() - metrics.bounds.centerX()
+        }.getOrDefault(0)
+    }
+
+    private fun defaultIslandYOffset(heightDp: Int): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return dp(8)
+        return runCatching {
+            val manager = getSystemService(WINDOW_SERVICE) as WindowManager
+            val metrics = manager.currentWindowMetrics
+            val rect = metrics.windowInsets.displayCutout?.boundingRects
+                ?.filter { it.top <= dp(100) }
+                ?.maxByOrNull { it.width().toLong() * it.height().toLong() }
+                ?: return dp(8)
+            (rect.centerY() - dp(heightDp) / 2).coerceAtLeast(dp(4))
+        }.getOrDefault(dp(8))
     }
 
     private fun reduceMotionEnabled(): Boolean =
