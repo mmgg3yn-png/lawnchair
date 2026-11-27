@@ -1979,6 +1979,10 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public DragView beginDragShared(View child, DraggableView draggableView, DragSource source,
             ItemInfo dragObject, DragPreviewProvider previewProvider, DragOptions dragOptions) {
 
+        final boolean needsWidgetHostPreDragVisible =
+                (child instanceof com.android.launcher3.widget.LauncherAppWidgetHostView)
+                        || (!(child instanceof WidgetStackView) && dragObject instanceof LauncherAppWidgetInfo);
+
         float iconScale = 1f;
         if (child instanceof BubbleTextView) {
             Drawable icon = ((BubbleTextView) child).getIcon();
@@ -4480,7 +4484,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         });
 
         // Create a new single widget view
-        View newWidgetView = mLauncher.getItemInflater().inflateItem(widgetInfo, mLauncher.getModelWriter());
+        View newWidgetView = mLauncher.getItemInflater().inflateItem(widgetInfo, parentLayout);
         if (newWidgetView == null) {
             android.util.Log.w("Workspace", "Cannot collapse stack: failed to inflate widget view");
             return;
