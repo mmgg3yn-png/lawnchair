@@ -138,6 +138,7 @@ class MiMaxIslandService : NotificationListenerService() {
         activeEvents.clear()
         activeNotifications?.forEach { activeEvents[it.key] = it }
         activeEvents.values.lastOrNull()?.let { show(it) }
+        timerTicker.run()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
