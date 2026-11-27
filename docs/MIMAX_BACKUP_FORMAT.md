@@ -23,7 +23,7 @@ A UTF-8 JSON document with:
 - `payload`: serialized JSON object containing typed SharedPreferences entries
 - `sha256`: lowercase SHA-256 hex digest of the exact UTF-8 bytes in `payload`
 
-The restore path verifies the digest, package name, format, schema version, input size, preference keys, and primitive value types before changing any preference file. If a preference write fails, the manager attempts to restore the captured pre-import values.
+The restore path verifies the digest, package name, format, schema version, input size, preference keys, and primitive value types before changing any preference file. If a preference write fails, the manager attempts to restore the captured pre-import values. After a successful restore, the daily alarm is synchronized with the restored auto-backup preference. Transient last-success and last-error status fields are not exported.
 
 SHA-256 detects accidental corruption; it is not a digital signature and does not prove who created a backup.
 
