@@ -28,6 +28,9 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import kotlin.math.roundToInt
 
 /** Notification-backed Me Island. User-granted notification and overlay access are required. */
@@ -41,6 +44,32 @@ class MiMaxIslandService : NotificationListenerService() {
     private var style = IslandStyle.HIS
     private var mediaController: MediaController? = null
     private val dismiss = Runnable { removeIsland() }
+    private var lastMessage = ""
+    private var batteryReceiverRegistered = false
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != Intent.ACTION_BATTERY_CHANGED) return
+            val level = intent.getIntExtra("level", -1)
+            val scale = intent.getIntExtra("scale", 100).coerceAtLeast(1)
+            val percent = if (level >= 0) (level * 100 / scale) else -1
+            val plugged = intent.getIntExtra("plugged", 0) != 0
+            val status = if (plugged) "Charging" else "Battery"
+            val batteryText = if (percent >= 0) "$status • $percent%" else status
+            island?.findViewWithTag<TextView>("message")?.let { view ->
+                val base = lastMessage
+                view.text = listOf(base, batteryText).filter { it.isNotBlank() }.joinToString("  •  ")
+                view.visibility = if (expanded) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        runCatching {
+            registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            batteryReceiverRegistered = true
+        }
+    }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
@@ -84,6 +113,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 mediaMetadata.getString(MediaMetadata.METADATA_KEY_ALBUM)).joinToString(" • ")
                 .ifBlank { notificationMessage }
         } else notificationMessage
+        lastMessage = message
         if (title.isBlank() && message.isBlank()) return
 
         main.removeCallbacks(dismiss)
@@ -377,6 +407,8 @@ class MiMaxIslandService : NotificationListenerService() {
     }
 
     override fun onDestroy() {
+        if (batteryReceiverRegistered) runCatching { unregisterReceiver(batteryReceiver) }
+        batteryReceiverRegistered = false
         removeIsland()
         super.onDestroy()
     }
