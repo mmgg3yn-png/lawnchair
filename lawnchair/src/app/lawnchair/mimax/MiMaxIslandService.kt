@@ -56,21 +56,24 @@ class MiMaxIslandService : NotificationListenerService() {
         override fun run() {
             val end = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 .getLong("island_timer_end", 0L)
-            val remaining = end - System.currentTimeMillis()
+            val prefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            val paused = prefs.getBoolean("island_timer_paused", false)
+            val remaining = if (paused) prefs.getLong("island_timer_remaining", 0L)
+                else end - System.currentTimeMillis()
             timerStatusText = if (remaining > 0L) {
                 val seconds = (remaining / 1000L).coerceAtLeast(0L)
-                "Timer %02d:%02d".format(Locale.getDefault(), seconds / 60, seconds % 60)
+                (if (paused) "Timer paused • " else "Timer • ") +
+                    "%02d:%02d".format(Locale.getDefault(), seconds / 60, seconds % 60)
             } else {
-                if (end != 0L) {
-                    getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE).edit()
-                        .remove("island_timer_end").apply()
-                }
+                if (end != 0L || paused) prefs.edit()
+                    .remove("island_timer_end").remove("island_timer_remaining")
+                    .putBoolean("island_timer_paused", false).apply()
                 ""
             }
             if (remaining > 0L && island == null && activeKey == null) showStandaloneTimer()
             if (remaining <= 0L && activeKey == null) removeIsland()
             updateActivityMessages()
-            if (end > System.currentTimeMillis()) main.postDelayed(this, 1000L)
+            if (!paused && end > System.currentTimeMillis()) main.postDelayed(this, 1000L)
         }
     }
     private var batteryReceiverRegistered = false
@@ -147,6 +150,9 @@ class MiMaxIslandService : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         main.post {
             activeEvents.remove(sbn.key)
+            island?.findViewWithTag<LinearLayout>("event_switcher")?.visibility =
+                if (activeEvents.size > 1) View.VISIBLE else View.GONE
+            island?.findViewWithTag<TextView>("event_count")?.text = eventPositionLabel()
             if (sbn.key == activeKey) {
                 activeEvents.values.lastOrNull()?.let { show(it) } ?: removeIsland()
             }
@@ -199,6 +205,9 @@ class MiMaxIslandService : NotificationListenerService() {
             runCatching { wm?.addView(island, params) }.onFailure { island = null }
         } else {
             island?.findViewWithTag<TextView>("title")?.text = title
+            island?.findViewWithTag<LinearLayout>("event_switcher")?.visibility =
+                if (activeEvents.size > 1) View.VISIBLE else View.GONE
+            island?.findViewWithTag<TextView>("event_count")?.text = eventPositionLabel()
             island?.findViewWithTag<TextView>("message")?.apply {
                 text = displayMessage()
                 visibility = if (expanded && message.isNotBlank()) View.VISIBLE else View.GONE
@@ -273,6 +282,12 @@ class MiMaxIslandService : NotificationListenerService() {
                         state == PlaybackState.STATE_BUFFERING
                 }
         }.getOrNull()
+    }
+
+    private fun eventPositionLabel(): String {
+        val items = activeEvents.keys.toList()
+        val index = items.indexOf(activeKey)
+        return if (items.isEmpty() || index < 0) "0/0" else "${index + 1}/${items.size}"
     }
 
     private fun cycleEvent(direction: Int) {
@@ -405,6 +420,32 @@ class MiMaxIslandService : NotificationListenerService() {
                 gravity = Gravity.CENTER
             }, LinearLayout.LayoutParams(-1, dp(8)))
         }
+
+        val eventSwitcher = LinearLayout(this).apply {
+            tag = "event_switcher"
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = if (activeEvents.size > 1) View.VISIBLE else View.GONE
+        }
+        fun eventButton(label: String, direction: Int) = TextView(this).apply {
+            text = label
+            textSize = 15f
+            setTextColor(0xFFB9D7FF.toInt())
+            gravity = Gravity.CENTER
+            isClickable = true
+            setPadding(dp(18), dp(2), dp(18), dp(2))
+            setOnClickListener { cycleEvent(direction) }
+        }
+        eventSwitcher.addView(eventButton("‹", -1))
+        eventSwitcher.addView(TextView(this).apply {
+            tag = "event_count"
+            text = eventPositionLabel()
+            textSize = 10f
+            setTextColor(0xFFB9C0D4.toInt())
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        eventSwitcher.addView(eventButton("›", 1))
+        content.addView(eventSwitcher, LinearLayout.LayoutParams(-1, -2))
 
         content.addView(TextView(this).apply {
             tag = "title"
