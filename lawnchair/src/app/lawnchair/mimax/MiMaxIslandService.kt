@@ -88,8 +88,11 @@ class MiMaxIslandService : NotificationListenerService() {
                 if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                         .getBoolean("focus_mode_enabled", false)) {
                     removeIsland()
+                    removeFloatingPanel()
                 } else {
-                    activeEvents.values.lastOrNull()?.let { show(it) }
+                    val latest = activeEvents.values.lastOrNull()
+                    if (latest != null) show(latest)
+                    else if (timerStatusText.isNotBlank()) showStandaloneTimer()
                 }
                 return
             }
@@ -175,6 +178,7 @@ class MiMaxIslandService : NotificationListenerService() {
         if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 .getBoolean("focus_mode_enabled", false)) {
             removeIsland()
+            removeFloatingPanel()
             return
         }
         activeKey = sbn.key
@@ -605,6 +609,8 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun showStandaloneTimer() {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
+        if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                .getBoolean("focus_mode_enabled", false)) return
         style = MiMaxIslandPreferences.style(this)
         val view = makeView("Timer", displayMessage())
         island = view
