@@ -68,6 +68,9 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun show(sbn: StatusBarNotification) {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
+        activeKey = sbn.key
+        style = MiMaxIslandPreferences.style(this)
+        refreshMediaSession()
         val extras = sbn.notification.extras
         val notificationTitle = extras.getCharSequence("android.title")?.toString()?.take(80)
             ?: appLabel(sbn.packageName)
@@ -83,9 +86,6 @@ class MiMaxIslandService : NotificationListenerService() {
         } else notificationMessage
         if (title.isBlank() && message.isBlank()) return
 
-        activeKey = sbn.key
-        style = MiMaxIslandPreferences.style(this)
-        refreshMediaSession()
         main.removeCallbacks(dismiss)
         if (island == null) {
             island = makeView(title, message)
