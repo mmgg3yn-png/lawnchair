@@ -84,6 +84,15 @@ class MiMaxIslandService : NotificationListenerService() {
                 timerTicker.run()
                 return
             }
+            if (intent.action == "app.lawnchair.mimax.ACTION_FOCUS_MODE_CHANGED") {
+                if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                        .getBoolean("focus_mode_enabled", false)) {
+                    removeIsland()
+                } else {
+                    activeEvents.values.lastOrNull()?.let { show(it) }
+                }
+                return
+            }
             if (intent.action == MiMaxIslandPreferences.ACTION_THEME_UPDATED) {
                 style = MiMaxIslandPreferences.style(this@MiMaxIslandService)
                 val active = activeEvents[activeKey]
@@ -120,6 +129,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 addAction(Intent.ACTION_TIME_TICK)
                 addAction(MiMaxIslandPreferences.ACTION_TIMER_UPDATED)
                 addAction(MiMaxIslandPreferences.ACTION_THEME_UPDATED)
+                addAction("app.lawnchair.mimax.ACTION_FOCUS_MODE_CHANGED")
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -162,6 +172,11 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun show(sbn: StatusBarNotification) {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
+        if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                .getBoolean("focus_mode_enabled", false)) {
+            removeIsland()
+            return
+        }
         activeKey = sbn.key
         style = MiMaxIslandPreferences.style(this)
         refreshMediaSession()
