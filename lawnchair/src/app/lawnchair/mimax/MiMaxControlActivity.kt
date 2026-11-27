@@ -37,6 +37,7 @@ class MiMaxControlActivity : Activity() {
     private val requestExportBackup = 7104
     private val requestImportExtension = 7105
     private val requestExportExtension = 7106
+    private val requestWeatherLocation = 7107
     private var pendingExtensionExport: MiMaxExtensionCodec.Definition? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +51,46 @@ class MiMaxControlActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::root.isInitialized) render()
+    }
+
+    private fun requestMiMaxWeather() {
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(android.Manifest.permission.ACCESS_COARSE_LOCATION),
+                requestWeatherLocation
+            )
+            return
+        }
+        refreshMiMaxWeather()
+    }
+
+    private fun refreshMiMaxWeather() {
+        Toast.makeText(this, "جارٍ جلب الطقس للموقع الحالي…", Toast.LENGTH_SHORT).show()
+        MiMaxWeatherProvider.refresh(this) { success, message ->
+            Toast.makeText(
+                this,
+                if (success) "تم تحديث الطقس: $message" else "تعذر تحديث الطقس: $message",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    @Deprecated("Deprecated in Android API")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == requestWeatherLocation) {
+            if (grantResults.isNotEmpty() &&
+                grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                refreshMiMaxWeather()
+            } else {
+                Toast.makeText(this, "يلزم إذن الموقع لتحديد حالة الطقس", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun render() {
@@ -122,6 +163,7 @@ class MiMaxControlActivity : Activity() {
         addButton("منح إذن الوصول للإشعارات") {
             startActivity(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
+        addButton("تحديث الطقس في Me Island") { requestMiMaxWeather() }
         val timerMinutes = EditText(this).apply {
             hint = "مدة المؤقت بالدقائق"
             inputType = InputType.TYPE_CLASS_NUMBER
