@@ -445,6 +445,32 @@ class MiMaxIslandService : NotificationListenerService() {
                 textSize = 15f
                 typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
                 maxLines = 1
+                var downX = 0f
+                var downY = 0f
+                var startX = 0
+                var startY = 0
+                setOnTouchListener { view, event ->
+                    when (event.action) {
+                        android.view.MotionEvent.ACTION_DOWN -> {
+                            downX = event.rawX
+                            downY = event.rawY
+                            val lp = floatingPanel?.layoutParams as? WindowManager.LayoutParams
+                            startX = lp?.x ?: 0
+                            startY = lp?.y ?: 0
+                            true
+                        }
+                        android.view.MotionEvent.ACTION_MOVE -> {
+                            val lp = floatingPanel?.layoutParams as? WindowManager.LayoutParams
+                            if (lp != null) {
+                                lp.x = startX + (event.rawX - downX).toInt()
+                                lp.y = startY + (event.rawY - downY).toInt()
+                                runCatching { wm?.updateViewLayout(floatingPanel, lp) }
+                            }
+                            true
+                        }
+                        else -> true
+                    }
+                }
             }, LinearLayout.LayoutParams(-1, -2))
             addView(TextView(this@MiMaxIslandService).apply {
                 tag = "float_message"
