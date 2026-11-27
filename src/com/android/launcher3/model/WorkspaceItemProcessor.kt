@@ -557,6 +557,7 @@ class WorkspaceItemProcessor(
         appWidgetInfo.options = c.options
         appWidgetInfo.user = c.user
         appWidgetInfo.sourceContainer = c.appWidgetSource
+        appWidgetInfo.widgetStackId = c.widgetStackId
         appWidgetInfo.restoreStatus = c.restoreFlag
         if (appWidgetInfo.spanX <= 0 || appWidgetInfo.spanY <= 0) {
             c.markDeleted(
