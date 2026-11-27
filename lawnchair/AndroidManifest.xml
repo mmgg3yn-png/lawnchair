@@ -156,6 +156,12 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <activity
+            android:name="app.lawnchair.mimax.MiMaxControlActivity"
+            android:exported="false"
+            android:label="Me Island"
+            android:theme="@style/Theme.Lawnchair" />
+
         <service
             android:name="app.lawnchair.mimax.MiMaxIslandService"
             android:label="Me Island"
