@@ -810,7 +810,8 @@ class MiMaxIslandService : NotificationListenerService() {
     private fun primaryActivityMessage(sbn: StatusBarNotification?): String {
         if (style != IslandStyle.COLOROS || sbn == null) return displayMessage()
         val chronometer = systemChronometerText(sbn)
-        return chronometer.ifBlank { lastMessage }
+        return listOf(chronometer.ifBlank { lastMessage }, weatherStatusText)
+            .filter { it.isNotBlank() }.joinToString("  •  ")
     }
 
     private fun activityStatusLabel(sbn: StatusBarNotification?): String {
