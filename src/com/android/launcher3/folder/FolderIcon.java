@@ -87,6 +87,7 @@ import com.android.launcher3.util.Thunk;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.FloatingIconViewCompanion;
 import com.android.launcher3.widget.PendingAddShortcutInfo;
+import app.lawnchair.mimax.MiMaxFolderStackStore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -140,6 +141,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     private Rect mTouchArea = new Rect();
 
     private float mScaleForReorderBounce = 1f;
+    private final Paint mMiMaxStackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private static final Property<FolderIcon, Float> DOT_SCALE_PROPERTY
             = new Property<FolderIcon, Float>(Float.TYPE, "dotScale") {
@@ -613,6 +615,52 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         }
 
         drawDot(canvas);
+        drawMiMaxStackIndicator(canvas);
+    }
+
+    /**
+     * Draws a compact layered-folder marker when this folder is the first
+     * (anchor) folder in a saved Mi_Max stack. Child folders remain normal
+     * Launcher folders and are never copied or destroyed by the stack model.
+     */
+    private void drawMiMaxStackIndicator(Canvas canvas) {
+        if (mInfo == null || mInfo.id < 0) return;
+        MiMaxFolderStackStore.Stack stack = null;
+        try {
+            for (MiMaxFolderStackStore.Stack candidate :
+                    new MiMaxFolderStackStore(getContext()).getAll()) {
+                if (!candidate.getChildFolderIds().isEmpty()
+                        && candidate.getChildFolderIds().get(0) == mInfo.id) {
+                    stack = candidate;
+                    break;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            return;
+        }
+        if (stack == null) return;
+
+        float density = getResources().getDisplayMetrics().density;
+        float right = getWidth() - getPaddingRight() - 5f * density;
+        float top = getPaddingTop() + 5f * density;
+        float width = 15f * density;
+        float height = 19f * density;
+        mMiMaxStackPaint.setStyle(Paint.Style.FILL);
+        mMiMaxStackPaint.setColor(0xE6222222);
+        canvas.drawRoundRect(right - width + 2f * density, top + 3f * density,
+                right + 2f * density, top + height + 3f * density,
+                3f * density, 3f * density, mMiMaxStackPaint);
+        mMiMaxStackPaint.setColor(0xF2FFFFFF);
+        canvas.drawRoundRect(right - width, top + 1f * density,
+                right, top + height + 1f * density,
+                3f * density, 3f * density, mMiMaxStackPaint);
+        mMiMaxStackPaint.setColor(0xFF252525);
+        mMiMaxStackPaint.setTextSize(9f * density);
+        mMiMaxStackPaint.setTypeface(android.graphics.Typeface.create(
+                android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
+        String count = String.valueOf(stack.getChildFolderIds().size());
+        canvas.drawText(count, right - width + 3f * density,
+                top + 13f * density, mMiMaxStackPaint);
     }
 
     public void drawDot(Canvas canvas) {
