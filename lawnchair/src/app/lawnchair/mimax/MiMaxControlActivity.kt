@@ -169,6 +169,7 @@ class MiMaxControlActivity : Activity() {
 
     private fun choose(style: IslandStyle) {
         MiMaxIslandPreferences.setStyle(this, style)
+        sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
         Toast.makeText(this, "تم اختيار تصميم " + style.name, Toast.LENGTH_SHORT).show()
     }
 
@@ -207,6 +208,7 @@ class MiMaxControlActivity : Activity() {
                 .putInt("mt1_width", theme.widthDp)
                 .putString("mt1_theme_name", theme.name)
                 .apply()
+            sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
             Toast.makeText(this, "تم استيراد الثيم: " + theme.name, Toast.LENGTH_LONG).show()
         }.onFailure {
             Toast.makeText(this, "فشل استيراد MT1: " + (it.message ?: "ملف غير صالح"), Toast.LENGTH_LONG).show()
