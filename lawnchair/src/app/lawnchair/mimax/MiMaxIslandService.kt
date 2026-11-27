@@ -271,8 +271,8 @@ class MiMaxIslandService : NotificationListenerService() {
                 if (activeEvents.size > 1) View.VISIBLE else View.GONE
             island?.findViewWithTag<TextView>("event_count")?.text = eventPositionLabel()
             island?.findViewWithTag<TextView>("message")?.apply {
-                text = displayMessage()
-                visibility = if (expanded && message.isNotBlank()) View.VISIBLE else View.GONE
+                text = primaryActivityMessage(sbn)
+                visibility = if (expanded && text.isNotBlank()) View.VISIBLE else View.GONE
             }
             island?.findViewWithTag<LinearLayout>("media_controls")?.visibility =
                 if (expanded && mediaController != null) View.VISIBLE else View.GONE
@@ -563,7 +563,7 @@ class MiMaxIslandService : NotificationListenerService() {
         content.addView(titleView, LinearLayout.LayoutParams(-1, -2))
         content.addView(TextView(this).apply {
             tag = "message"
-            text = displayMessage()
+            text = primaryActivityMessage(sbn)
             setTextColor(when (style) {
                 IslandStyle.LTIN -> 0xFFB7B7C0.toInt()
                 IslandStyle.HIS -> 0xFFB9C7E4.toInt()
@@ -687,13 +687,24 @@ class MiMaxIslandService : NotificationListenerService() {
             else -> if (mediaController != null) "NOW PLAYING" else "LIVE ACTIVITY"
         }
 
-    private fun activityStatusLabel(sbn: StatusBarNotification?): String =
-        when (sbn?.notification?.category) {
+    private fun primaryActivityMessage(sbn: StatusBarNotification?): String {
+        if (style != IslandStyle.COLOROS || sbn == null) return displayMessage()
+        val chronometer = systemChronometerText(sbn)
+        return chronometer.ifBlank { lastMessage }
+    }
+
+    private fun activityStatusLabel(sbn: StatusBarNotification?): String {
+        val extras = sbn?.notification?.extras
+        val sourceSubText = (extras?.getCharSequence("android.subText")
+            ?: extras?.getCharSequence("android.summaryText"))?.toString()?.trim().orEmpty()
+        if (sourceSubText.isNotBlank()) return sourceSubText.take(90)
+        return when (sbn?.notification?.category) {
             Notification.CATEGORY_CALL -> "مكالمة جارية"
             Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "المؤقت يعمل"
             Notification.CATEGORY_NAVIGATION -> "التنقل نشط"
             else -> if (mediaController != null) "تشغيل الوسائط" else "نشاط مباشر"
         }
+    }
 
     private fun showStandaloneTimer() {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
