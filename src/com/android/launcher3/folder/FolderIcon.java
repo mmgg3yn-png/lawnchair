@@ -29,6 +29,7 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCH
 import static com.android.launcher3.model.data.FolderInfo.willAcceptItemType;
 
 import android.animation.Animator;
+import android.app.AlertDialog;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.content.Context;
@@ -220,7 +221,43 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         }
 
         icon.setTag(folderInfo);
-        icon.setOnClickListener(activity.getItemOnClickListener());
+        icon.setOnClickListener(clicked -> {
+            MiMaxFolderStackStore store = new MiMaxFolderStackStore(clicked.getContext());
+            MiMaxFolderStackStore.Stack stack = store.getAll().stream()
+                    .filter(candidate -> candidate.getChildFolderIds().contains(folderInfo.id))
+                    .findFirst().orElse(null);
+            if (stack == null || stack.getChildFolderIds().size() < 2
+                    || !(activity instanceof Launcher)) {
+                activity.getItemOnClickListener().onClick(clicked);
+                return;
+            }
+
+            CharSequence[] labels = new CharSequence[stack.getChildFolderIds().size()];
+            for (int i = 0; i < labels.length; i++) {
+                long childId = stack.getChildFolderIds().get(i);
+                FolderIcon childIcon = findStackFolderIcon(
+                        ((Launcher) activity).getWorkspace(), childId);
+                labels[i] = childIcon == null
+                        ? "Folder " + (i + 1)
+                        : childIcon.mInfo.title;
+            }
+            new AlertDialog.Builder(clicked.getContext())
+                    .setTitle(stack.getTitle())
+                    .setSingleChoiceItems(labels, stack.getSelectedIndex(), (dialog, which) -> {
+                        MiMaxFolderStackStore.Stack updated = store.select(stack.getId(), which);
+                        if (updated != null) {
+                            long selectedId = updated.getChildFolderIds().get(which);
+                            FolderIcon selectedIcon = findStackFolderIcon(
+                                    ((Launcher) activity).getWorkspace(), selectedId);
+                            if (selectedIcon != null && selectedIcon.getFolder() != null) {
+                                selectedIcon.getFolder().animateOpen();
+                            }
+                        }
+                        dialog.dismiss();
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        });
         icon.mInfo = folderInfo;
         icon.mActivity = activity;
         icon.mDotRenderer = grid.mDotRendererWorkSpace;
@@ -235,6 +272,25 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         icon.updatePreviewItems(false);
 
         return icon;
+    }
+
+    /**
+     * Finds a workspace folder icon by its persistent FolderInfo ID.
+     */
+    @Nullable
+    private static FolderIcon findStackFolderIcon(View root, long folderId) {
+        if (root instanceof FolderIcon) {
+            FolderIcon icon = (FolderIcon) root;
+            if (icon.mInfo != null && icon.mInfo.id == folderId) return icon;
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                FolderIcon found = findStackFolderIcon(group.getChildAt(i), folderId);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     public void animateBgShadowAndStroke() {
