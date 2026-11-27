@@ -86,6 +86,8 @@ class MiMaxControlActivity : Activity() {
             } else {
                 getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
                     .putLong("island_timer_end", System.currentTimeMillis() + minutes * 60_000L)
+                    .putLong("island_timer_remaining", 0L)
+                    .putBoolean("island_timer_paused", false)
                     .apply()
                 sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_TIMER_UPDATED))
                 Toast.makeText(this, "بدأ المؤقت", Toast.LENGTH_SHORT).show()
@@ -93,9 +95,41 @@ class MiMaxControlActivity : Activity() {
         }
         addButton("إيقاف المؤقت") {
             getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
-                .remove("island_timer_end").apply()
+                .remove("island_timer_end")
+                .remove("island_timer_remaining")
+                .putBoolean("island_timer_paused", false)
+                .apply()
             sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_TIMER_UPDATED))
             Toast.makeText(this, "تم إيقاف المؤقت", Toast.LENGTH_SHORT).show()
+        }
+        addButton("إيقاف مؤقت / متابعة") {
+            val prefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            val edit = prefs.edit()
+            if (prefs.getBoolean("island_timer_paused", false)) {
+                val remaining = prefs.getLong("island_timer_remaining", 0L)
+                if (remaining > 0L) {
+                    edit.putLong("island_timer_end", System.currentTimeMillis() + remaining)
+                        .putBoolean("island_timer_paused", false)
+                    Toast.makeText(this, "تمت متابعة المؤقت", Toast.LENGTH_SHORT).show()
+                } else {
+                    edit.remove("island_timer_end").remove("island_timer_remaining")
+                        .putBoolean("island_timer_paused", false)
+                    Toast.makeText(this, "لا يوجد وقت متبقٍ", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                val end = prefs.getLong("island_timer_end", 0L)
+                val remaining = end - System.currentTimeMillis()
+                if (remaining > 0L) {
+                    edit.putLong("island_timer_remaining", remaining)
+                        .putBoolean("island_timer_paused", true)
+                        .remove("island_timer_end")
+                    Toast.makeText(this, "تم إيقاف المؤقت مؤقتاً", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "لا يوجد مؤقت يعمل حالياً", Toast.LENGTH_SHORT).show()
+                }
+            }
+            edit.apply()
+            sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_TIMER_UPDATED))
         }
         addButton("إرسال إشعار تجريبي للجزيرة") {
             if (isNotificationListenerEnabled()) {
