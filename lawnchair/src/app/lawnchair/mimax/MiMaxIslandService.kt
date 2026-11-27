@@ -52,6 +52,7 @@ class MiMaxIslandService : NotificationListenerService() {
     private var batteryStatusText = ""
     private var clockStatusText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
     private var timerStatusText = ""
+    private var weatherStatusText = ""
     private val notificationTicker = object : Runnable {
         override fun run() {
             updateActivityMessages()
@@ -86,6 +87,15 @@ class MiMaxIslandService : NotificationListenerService() {
     private var batteryReceiverRegistered = false
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == MiMaxWeatherProvider.ACTION_WEATHER_UPDATED) {
+                weatherStatusText = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                    .getString("island_weather_text", "").orEmpty()
+                updateActivityMessages()
+                if (activeKey == null && timerStatusText.isBlank() && island == null && weatherStatusText.isNotBlank()) {
+                    showStandaloneActivity("Weather")
+                }
+                return
+            }
             if (intent.action == MiMaxIslandPreferences.ACTION_TIMER_UPDATED) {
                 main.removeCallbacks(timerTicker)
                 timerTicker.run()
@@ -141,11 +151,14 @@ class MiMaxIslandService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        weatherStatusText = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            .getString("island_weather_text", "").orEmpty()
         runCatching {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_BATTERY_CHANGED)
                 addAction(Intent.ACTION_TIME_TICK)
                 addAction(MiMaxIslandPreferences.ACTION_TIMER_UPDATED)
+                addAction(MiMaxWeatherProvider.ACTION_WEATHER_UPDATED)
                 addAction(MiMaxIslandPreferences.ACTION_THEME_UPDATED)
                 addAction("app.lawnchair.mimax.ACTION_FOCUS_MODE_CHANGED")
             }
@@ -369,7 +382,7 @@ class MiMaxIslandService : NotificationListenerService() {
 
     private fun displayMessage(): String {
         val systemChronometer = activeEvents[activeKey]?.let(::systemChronometerText).orEmpty()
-        return listOf(lastMessage, systemChronometer, batteryStatusText, clockStatusText, timerStatusText)
+        return listOf(lastMessage, systemChronometer, batteryStatusText, clockStatusText, timerStatusText, weatherStatusText)
             .filter { it.isNotBlank() }.joinToString("  •  ")
     }
 
