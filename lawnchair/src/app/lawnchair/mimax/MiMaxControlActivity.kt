@@ -75,6 +75,29 @@ class MiMaxControlActivity : Activity() {
             MiMaxIslandPreferences.setEnabled(this, !MiMaxIslandPreferences.enabled(this))
             render()
         }
+        root.addView(TextView(this).apply {
+            val lastError = MiMaxCrashRecovery.lastError(this@MiMaxControlActivity)
+            text = buildString {
+                append("حماية أعطال الجزيرة: ")
+                appendLine(MiMaxCrashRecovery.status(this@MiMaxControlActivity))
+                if (!lastError.isNullOrBlank()) {
+                    append("آخر خطأ: ")
+                    append(lastError)
+                }
+            }
+            textSize = 12f
+            setTextColor(0xFFB8B8C2.toInt())
+            setPadding(0, dp(8), 0, dp(4))
+        })
+        addButton(
+            if (MiMaxCrashRecovery.isDisabled(this))
+                "إعادة محاولة تشغيل الجزيرة" else "تصفير سجل أعطال الجزيرة"
+        ) {
+            MiMaxCrashRecovery.retry(this)
+            sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
+            Toast.makeText(this, "تمت إعادة ضبط حماية الأعطال", Toast.LENGTH_SHORT).show()
+            render()
+        }
         addButton(
             if (getSharedPreferences("mimax_launcher", MODE_PRIVATE).getBoolean("focus_mode_enabled", false))
                 "إيقاف وضع التركيز" else "تشغيل وضع التركيز"
