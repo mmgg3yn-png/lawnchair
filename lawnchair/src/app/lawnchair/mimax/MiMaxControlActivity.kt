@@ -10,6 +10,9 @@ import android.content.Intent
 import android.content.ComponentName
 import android.net.Uri
 import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import android.os.Bundle
 import android.provider.Settings
 import android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
@@ -226,6 +229,69 @@ class MiMaxControlActivity : Activity() {
             textSize = 12f
             setTextColor(0xFFB8B8C2.toInt())
         })
+        val backupPrefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+        val lastAutomaticBackup = backupPrefs.getLong(
+            MiMaxBackupReceiver.KEY_LAST_SUCCESS, 0L
+        )
+        val lastBackupError = backupPrefs.getString(
+            MiMaxBackupReceiver.KEY_LAST_ERROR, null
+        )
+        root.addView(TextView(this).apply {
+            text = buildString {
+                append("النسخ اليومي التلقائي: ")
+                append(if (MiMaxBackupScheduler.isEnabled(this@MiMaxControlActivity)) "مفعّل" else "متوقف")
+                appendLine()
+                append("آخر نسخة: ")
+                append(if (lastAutomaticBackup > 0L) {
+                    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                        .format(Date(lastAutomaticBackup))
+                } else "لم تُنشأ بعد")
+                if (!lastBackupError.isNullOrBlank()) {
+                    appendLine()
+                    append("آخر خطأ: ")
+                    append(lastBackupError)
+                }
+            }
+            textSize = 12f
+            setTextColor(0xFFB8B8C2.toInt())
+            setPadding(0, dp(8), 0, dp(4))
+        })
+        addButton(
+            if (MiMaxBackupScheduler.isEnabled(this))
+                "إيقاف النسخ الاحتياطي اليومي" else "تفعيل النسخ الاحتياطي اليومي"
+        ) {
+            MiMaxBackupScheduler.setEnabled(
+                this, !MiMaxBackupScheduler.isEnabled(this)
+            )
+            render()
+        }
+        addButton("استعادة آخر نسخة احتياطية تلقائية") {
+            val latest = MiMaxBackupScheduler.latestBackup(this)
+            if (latest == null) {
+                Toast.makeText(this, "لا توجد نسخة تلقائية محفوظة", Toast.LENGTH_LONG).show()
+            } else {
+                AlertDialog.Builder(this)
+                    .setTitle("استعادة نسخة تلقائية")
+                    .setMessage("سيتم استبدال إعدادات Mi_Max الحالية بنسخة ${latest.name}.")
+                    .setPositiveButton("استعادة") { _, _ ->
+                        runCatching {
+                            MiMaxBackupManager.restore(this, latest.readBytes())
+                            sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
+                            sendBroadcast(Intent("app.lawnchair.mimax.ACTION_FOCUS_MODE_CHANGED"))
+                            Toast.makeText(this, "تمت استعادة النسخة التلقائية", Toast.LENGTH_LONG).show()
+                            render()
+                        }.onFailure {
+                            Toast.makeText(
+                                this,
+                                "تعذرت الاستعادة: ${it.message ?: "خطأ غير معروف"}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    .setNegativeButton("إلغاء", null)
+                    .show()
+            }
+        }
         root.addView(TextView(this).apply {
             text = "ملفات الثيمات والأنماط"
             textSize = 18f
