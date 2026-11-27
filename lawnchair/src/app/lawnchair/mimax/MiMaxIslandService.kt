@@ -289,7 +289,7 @@ class MiMaxIslandService : NotificationListenerService() {
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
         params.width = dp(if (expanded) 320 else 220)
         params.height = dp(when {
-            expanded -> if (style == IslandStyle.COLOROS) 104 else 92
+            expanded -> if (style == IslandStyle.COLOROS) 124 else 116
             style == IslandStyle.HIS -> 58
             style == IslandStyle.LTIN -> 48
             else -> 54
