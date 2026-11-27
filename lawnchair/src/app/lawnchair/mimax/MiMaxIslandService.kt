@@ -254,6 +254,7 @@ class MiMaxIslandService : NotificationListenerService() {
             }
         } else {
             island?.findViewWithTag<TextView>("title")?.text = title
+            island?.findViewWithTag<TextView>("activity_icon")?.text = activityIcon(sbn)
             island?.findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                 if (activeEvents.size > 1) View.VISIBLE else View.GONE
             island?.findViewWithTag<TextView>("event_count")?.text = eventPositionLabel()
@@ -377,17 +378,24 @@ class MiMaxIslandService : NotificationListenerService() {
     }
 
     private fun makeView(title: String, message: String): LinearLayout {
+        val sbn = activeEvents[activeKey]
+        val accent = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+            .getInt("mt1_accent_color", when (style) {
+                IslandStyle.HIS -> 0xFF8EA8FF.toInt()
+                IslandStyle.LTIN -> 0xFF79E6A5.toInt()
+                IslandStyle.COLOROS -> 0xFF69D7C2.toInt()
+            })
         val root = LinearLayout(this).apply {
-            orientation = if (style == IslandStyle.COLOROS) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(
-                dp(if (style == IslandStyle.LTIN) 20 else 14),
-                dp(if (style == IslandStyle.HIS) 10 else 8),
-                dp(if (style == IslandStyle.LTIN) 20 else 14),
-                dp(if (style == IslandStyle.HIS) 10 else 8),
+                dp(when (style) { IslandStyle.LTIN -> 12; IslandStyle.HIS -> 10; IslandStyle.COLOROS -> 12 }),
+                dp(when (style) { IslandStyle.LTIN -> 7; IslandStyle.HIS -> 8; IslandStyle.COLOROS -> 8 }),
+                dp(when (style) { IslandStyle.LTIN -> 14; IslandStyle.HIS -> 12; IslandStyle.COLOROS -> 12 }),
+                dp(when (style) { IslandStyle.LTIN -> 7; IslandStyle.HIS -> 8; IslandStyle.COLOROS -> 8 })
             )
             background = islandBackground()
-            elevation = dp(14).toFloat()
+            elevation = dp(if (style == IslandStyle.LTIN) 18 else 12).toFloat()
             isClickable = true
             contentDescription = "Me Island: $title"
             var downX = 0f
@@ -409,9 +417,7 @@ class MiMaxIslandService : NotificationListenerService() {
                     android.view.MotionEvent.ACTION_MOVE -> {
                         val dx = event.rawX - downX
                         val dy = event.rawY - downY
-                        if (!dragging && (kotlin.math.abs(dx) > dp(10) || kotlin.math.abs(dy) > dp(10))) {
-                            dragging = true
-                        }
+                        if (!dragging && (kotlin.math.abs(dx) > dp(10) || kotlin.math.abs(dy) > dp(10))) dragging = true
                         if (dragging) {
                             (view.layoutParams as? WindowManager.LayoutParams)?.let { params ->
                                 params.x = startX + dx.toInt()
@@ -429,26 +435,19 @@ class MiMaxIslandService : NotificationListenerService() {
                                 getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE).edit()
                                     .putInt("island_position_x", params.x)
                                     .putInt("island_position_y", params.y)
-                                    .putBoolean("island_position_custom", true)
-                                    .apply()
+                                    .putBoolean("island_position_custom", true).apply()
                             }
                         } else if (kotlin.math.abs(dx) > dp(28) && kotlin.math.abs(dy) < dp(24)) {
                             cycleEvent(if (dx < 0) 1 else -1)
-                        } else {
-                            view.performClick()
-                        }
+                        } else performClick()
                         true
                     }
-                    android.view.MotionEvent.ACTION_CANCEL -> {
-                        dragging = false
-                        true
-                    }
+                    android.view.MotionEvent.ACTION_CANCEL -> { dragging = false; true }
                     else -> true
                 }
             }
             setOnLongClickListener {
-                val current = activeEvents[activeKey]
-                runCatching { current?.notification?.contentIntent?.send() }
+                runCatching { activeEvents[activeKey]?.notification?.contentIntent?.send() }
                 true
             }
             setOnClickListener {
@@ -462,55 +461,76 @@ class MiMaxIslandService : NotificationListenerService() {
                 findViewWithTag<LinearLayout>("event_switcher")?.visibility =
                     if (expanded && activeEvents.size > 1) View.VISIBLE else View.GONE
                 updateIslandSize(this)
-                val targetScale = if (expanded && !reduceMotionEnabled()) 1.025f else 1f
-                val transition = animate().scaleX(targetScale).scaleY(targetScale)
-                    .setDuration(animationDuration(180L))
-                when (animationStyle()) {
-                    0 -> transition.translationY(if (expanded) -dp(2).toFloat() else 0f)
-                    1 -> transition.translationY(0f)
-                    2 -> transition.translationY(0f)
-                    else -> transition.translationY(if (expanded) -dp(4).toFloat() else 0f)
+                if (!reduceMotionEnabled()) {
+                    animate().scaleX(if (expanded) 1.025f else 1f)
+                        .scaleY(if (expanded) 1.025f else 1f)
+                        .setDuration(animationDuration(190L))
+                        .setInterpolator(android.view.animation.OvershootInterpolator(0.55f))
+                        .start()
                 }
-                transition.start()
             }
         }
 
-        if (style == IslandStyle.COLOROS) {
-            val accent = View(this).apply {
-                background = GradientDrawable().apply {
-                    setColor(getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
-                        .getInt("mt1_accent_color", 0xFF8C9BFF.toInt()))
-                    cornerRadius = dp(4).toFloat()
-                }
+        // The three layouts are intentionally different, not just three background colours.
+        val iconTile = TextView(this).apply {
+            tag = "activity_icon"
+            text = activityIcon(sbn)
+            gravity = Gravity.CENTER
+            textSize = when (style) { IslandStyle.LTIN -> 16f; IslandStyle.HIS -> 17f; IslandStyle.COLOROS -> 15f }
+            setTextColor(if (style == IslandStyle.LTIN) 0xFF050608.toInt() else Color.WHITE)
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            background = GradientDrawable().apply {
+                setColor(when (style) {
+                    IslandStyle.LTIN -> accent
+                    IslandStyle.HIS -> 0xFF283653.toInt()
+                    IslandStyle.COLOROS -> accent
+                })
+                cornerRadius = dp(when (style) { IslandStyle.LTIN -> 50; IslandStyle.HIS -> 12; IslandStyle.COLOROS -> 9 }).toFloat()
             }
-            root.addView(accent, LinearLayout.LayoutParams(dp(4), -1).apply {
-                marginEnd = dp(10)
-            })
         }
+        val iconSize = when (style) { IslandStyle.LTIN -> 24; IslandStyle.HIS -> 34; IslandStyle.COLOROS -> 30 }
+        root.addView(iconTile, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)).apply {
+            marginEnd = dp(when (style) { IslandStyle.LTIN -> 9; IslandStyle.HIS -> 10; IslandStyle.COLOROS -> 9 })
+        })
 
-        val content = if (style == IslandStyle.COLOROS) {
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-        } else root
-
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = if (style == IslandStyle.COLOROS) Gravity.CENTER_VERTICAL else Gravity.CENTER
+        }
         if (style == IslandStyle.HIS) {
             content.addView(TextView(this).apply {
-                text = "●  LIVE ACTIVITY"
-                setTextColor(0xFF9EB6FF.toInt())
+                text = activityEyebrow(sbn)
+                setTextColor(0xFF9FB7FF.toInt())
                 textSize = 8f
                 letterSpacing = 0.08f
-                gravity = Gravity.CENTER
+                gravity = Gravity.START
             }, LinearLayout.LayoutParams(-1, -2))
-        } else if (style == IslandStyle.LTIN) {
-            content.addView(TextView(this).apply {
-                text = "●"
-                setTextColor(0xFF7DDBA5.toInt())
-                textSize = 7f
-                gravity = Gravity.CENTER
-            }, LinearLayout.LayoutParams(-1, dp(8)))
         }
+        val titleView = TextView(this).apply {
+            tag = "title"
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = when (style) { IslandStyle.HIS -> 12f; IslandStyle.LTIN -> 12f; IslandStyle.COLOROS -> 13f }
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = if (style == IslandStyle.LTIN) Gravity.CENTER_VERTICAL else Gravity.START
+        }
+        content.addView(titleView, LinearLayout.LayoutParams(-1, -2))
+        content.addView(TextView(this).apply {
+            tag = "message"
+            text = displayMessage()
+            setTextColor(when (style) {
+                IslandStyle.LTIN -> 0xFFB7B7C0.toInt()
+                IslandStyle.HIS -> 0xFFB9C7E4.toInt()
+                IslandStyle.COLOROS -> 0xFFB8C7C9.toInt()
+            })
+            textSize = 10f
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.START
+            visibility = if (expanded) View.VISIBLE else View.GONE
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
 
         val eventSwitcher = LinearLayout(this).apply {
             tag = "event_switcher"
@@ -521,7 +541,7 @@ class MiMaxIslandService : NotificationListenerService() {
         fun eventButton(label: String, direction: Int) = TextView(this).apply {
             text = label
             textSize = 15f
-            setTextColor(0xFFB9D7FF.toInt())
+            setTextColor(accent)
             gravity = Gravity.CENTER
             isClickable = true
             setPadding(dp(18), dp(2), dp(18), dp(2))
@@ -537,30 +557,6 @@ class MiMaxIslandService : NotificationListenerService() {
         }, LinearLayout.LayoutParams(0, -2, 1f))
         eventSwitcher.addView(eventButton("›", 1))
         content.addView(eventSwitcher, LinearLayout.LayoutParams(-1, -2))
-
-        content.addView(TextView(this).apply {
-            tag = "title"
-            text = title
-            setTextColor(Color.WHITE)
-            textSize = when (style) {
-                IslandStyle.HIS -> 12f
-                IslandStyle.LTIN -> 13f
-                IslandStyle.COLOROS -> 13f
-            }
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            maxLines = 1
-            gravity = if (style == IslandStyle.COLOROS) Gravity.START else Gravity.CENTER
-        }, LinearLayout.LayoutParams(-1, -2))
-
-        content.addView(TextView(this).apply {
-            tag = "message"
-            text = message
-            setTextColor(if (style == IslandStyle.COLOROS) 0xFFB9C0D4.toInt() else 0xFFE6E6E6.toInt())
-            textSize = 11f
-            maxLines = 2
-            gravity = if (style == IslandStyle.COLOROS) Gravity.START else Gravity.CENTER
-            visibility = View.GONE
-        }, LinearLayout.LayoutParams(-1, -2))
 
         val notificationActions = LinearLayout(this).apply {
             tag = "notification_actions"
@@ -586,48 +582,73 @@ class MiMaxIslandService : NotificationListenerService() {
                 gravity = Gravity.CENTER
                 isClickable = true
                 setOnClickListener { action() }
-                setPadding(dp(18), dp(4), dp(18), dp(4))
+                setPadding(dp(16), dp(4), dp(16), dp(4))
             }
-        controls.addView(mediaButton("⏮", "media_previous") {
-            runCatching { mediaController?.transportControls?.skipToPrevious() }
-        })
-        controls.addView(mediaButton(
-            if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶",
-            "media_play",
-        ) {
+        controls.addView(mediaButton("⏮", "media_previous") { runCatching { mediaController?.transportControls?.skipToPrevious() } })
+        controls.addView(mediaButton(if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶", "media_play") {
             runCatching {
-                val controls = mediaController?.transportControls
-                if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) controls?.pause()
-                else controls?.play()
+                val transport = mediaController?.transportControls
+                if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) transport?.pause() else transport?.play()
             }
             island?.findViewWithTag<TextView>("media_play")?.text =
                 if (mediaController?.playbackState?.state == PlaybackState.STATE_PLAYING) "Ⅱ" else "▶"
         })
-        controls.addView(mediaButton("⏭", "media_next") {
-            runCatching { mediaController?.transportControls?.skipToNext() }
-        })
+        controls.addView(mediaButton("⏭", "media_next") { runCatching { mediaController?.transportControls?.skipToNext() } })
         controls.addView(mediaButton("▣", "float_toggle") {
             toggleFloatingPanel(title = island?.findViewWithTag<TextView>("title")?.text?.toString().orEmpty())
         })
         content.addView(controls, LinearLayout.LayoutParams(-1, -2))
-        content.addView(TextView(this).apply {
-            text = if (floatingPanel == null) "▣  نافذة عائمة" else "إغلاق النافذة العائمة"
-            setTextColor(0xFFB9D7FF.toInt())
-            textSize = 10f
-            gravity = Gravity.CENTER
-            isClickable = true
-            setOnClickListener {
-                toggleFloatingPanel(title = island?.findViewWithTag<TextView>("title")?.text?.toString().orEmpty())
-                text = if (floatingPanel == null) "▣  نافذة عائمة" else "إغلاق النافذة العائمة"
-            }
-        }, LinearLayout.LayoutParams(-1, -2))
 
-        if (content !== root) {
-            root.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
+        if (style == IslandStyle.COLOROS) {
+            content.addView(TextView(this).apply {
+                text = activityStatusLabel(sbn)
+                setTextColor(accent)
+                textSize = 9f
+                gravity = Gravity.START
+                setPadding(0, dp(3), 0, 0)
+            }, LinearLayout.LayoutParams(-1, -2))
+        }
+        root.addView(content, LinearLayout.LayoutParams(0, -2, 1f))
+        if (style == IslandStyle.LTIN && !expanded) {
+            root.findViewWithTag<TextView>("message")?.visibility = View.GONE
         }
         applyIslandEnterAnimation(root)
         return root
     }
+
+    private fun activityIcon(sbn: StatusBarNotification?): String {
+        val category = sbn?.notification?.category
+        val text = sbn?.notification?.extras?.let { extras ->
+            (extras.getCharSequence("android.title").toString() + " " +
+                extras.getCharSequence("android.text").toString()).lowercase()
+        }.orEmpty()
+        return when {
+            category == Notification.CATEGORY_CALL || text.contains("call") || text.contains("مكالمة") -> "☎"
+            category == Notification.CATEGORY_ALARM || category == Notification.CATEGORY_REMINDER ||
+                text.contains("timer") || text.contains("مؤقت") -> "◷"
+            text.contains("download") || text.contains("تحميل") || text.contains("تنزيل") -> "↓"
+            category == Notification.CATEGORY_NAVIGATION -> "➤"
+            mediaController != null -> "♫"
+            text.contains("record") || text.contains("تسجيل") -> "●"
+            else -> "●"
+        }
+    }
+
+    private fun activityEyebrow(sbn: StatusBarNotification?): String =
+        when (sbn?.notification?.category) {
+            Notification.CATEGORY_CALL -> "CALL IN PROGRESS"
+            Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "LIVE TIMER"
+            Notification.CATEGORY_NAVIGATION -> "LIVE NAVIGATION"
+            else -> if (mediaController != null) "NOW PLAYING" else "LIVE ACTIVITY"
+        }
+
+    private fun activityStatusLabel(sbn: StatusBarNotification?): String =
+        when (sbn?.notification?.category) {
+            Notification.CATEGORY_CALL -> "مكالمة جارية"
+            Notification.CATEGORY_ALARM, Notification.CATEGORY_REMINDER -> "المؤقت يعمل"
+            Notification.CATEGORY_NAVIGATION -> "التنقل نشط"
+            else -> if (mediaController != null) "تشغيل الوسائط" else "نشاط مباشر"
+        }
 
     private fun showStandaloneTimer() {
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
@@ -856,12 +877,20 @@ class MiMaxIslandService : NotificationListenerService() {
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
         val customWidth = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
             .getInt("mt1_width", 320)
-        params.width = dp(if (expanded) customWidth else 220)
+        params.width = dp(if (expanded) customWidth else when (style) {
+            IslandStyle.LTIN -> 126
+            IslandStyle.HIS -> 208
+            IslandStyle.COLOROS -> 224
+        })
         params.height = dp(when {
-            expanded -> if (style == IslandStyle.COLOROS) 124 else 116
+            expanded -> when (style) {
+                IslandStyle.LTIN -> 148
+                IslandStyle.HIS -> 132
+                IslandStyle.COLOROS -> 138
+            }
             style == IslandStyle.HIS -> 58
-            style == IslandStyle.LTIN -> 48
-            else -> 54
+            style == IslandStyle.LTIN -> 42
+            else -> 52
         })
         runCatching { wm?.updateViewLayout(view, params) }
     }
@@ -870,16 +899,20 @@ class MiMaxIslandService : NotificationListenerService() {
         val prefs = getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
         setColor(prefs.getInt("mt1_background_color", when (style) {
             IslandStyle.HIS -> 0xF0181D2B.toInt()
-            IslandStyle.LTIN -> 0xF0060608.toInt()
-            IslandStyle.COLOROS -> 0xF0262730.toInt()
+            IslandStyle.LTIN -> 0xF0000000.toInt()
+            IslandStyle.COLOROS -> 0xF026292D.toInt()
         }))
         cornerRadius = dp(prefs.getInt("mt1_corner_radius", when (style) {
             IslandStyle.HIS -> 22
-            IslandStyle.LTIN -> 36
-            IslandStyle.COLOROS -> 16
+            IslandStyle.LTIN -> 32
+            IslandStyle.COLOROS -> 18
         })).toFloat()
-        val accent = prefs.getInt("mt1_accent_color", 0xFF8C9BFF.toInt())
-        setStroke(dp(1), accent)
+        val accent = prefs.getInt("mt1_accent_color", when (style) {
+            IslandStyle.HIS -> 0xFF8EA8FF.toInt()
+            IslandStyle.LTIN -> 0xFF79E6A5.toInt()
+            IslandStyle.COLOROS -> 0xFF69D7C2.toInt()
+        })
+        if (style != IslandStyle.LTIN) setStroke(dp(1), accent)
     }
 
     private fun removeIsland() {
