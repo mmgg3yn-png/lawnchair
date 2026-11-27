@@ -327,6 +327,8 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         CharSequence[] options = new CharSequence[] {
                 "إعادة تسمية التكديس",
                 "إضافة مجلد موجود",
+                "تقديم هذا المجلد في التكديس",
+                "تأخير هذا المجلد في التكديس",
                 "إزالة هذا المجلد من التكديس"
         };
         new AlertDialog.Builder(anchorView.getContext())
@@ -387,7 +389,18 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                                         })
                                 .setNegativeButton(android.R.string.cancel, null)
                                 .show();
-                    } else if (which == 2) {
+                    } else if (which == 2 || which == 3) {
+                        MiMaxFolderStackStore.Stack updated = store.moveFolder(
+                                stack.getId(), currentFolderId, which == 2 ? -1 : 1);
+                        if (updated != null) {
+                            syncMiMaxStackIcons(workspace, store);
+                            android.widget.Toast.makeText(
+                                    anchorView.getContext(),
+                                    "تم تحديث ترتيب المجلدات",
+                                    android.widget.Toast.LENGTH_SHORT
+                            ).show();
+                        }
+                    } else if (which == 4) {
                         store.removeFolder(stack.getId(), currentFolderId);
                         syncMiMaxStackIcons(workspace, store);
                         android.widget.Toast.makeText(
