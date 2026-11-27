@@ -1153,11 +1153,13 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         boolean isFolderItem = d.dragInfo instanceof FolderInfo;
         boolean isRootFolder = mInfo.container == com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
                 || mInfo.container == com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
-        // Folder stacks are intentionally one level deep: a home-screen folder may contain
-        // other folders, but a folder already inside a stack cannot contain another folder.
+        boolean draggedFolderHasNestedFolder = isFolderItem
+                && ((FolderInfo) d.dragInfo).getContents().stream()
+                        .anyMatch(item -> item instanceof FolderInfo);
+        // Keep stacks one level deep and reject moves that would create recursive folder trees.
         return !isInAppDrawer()
                 && willAcceptItemType(d.dragInfo.itemType)
-                && (!isFolderItem || isRootFolder);
+                && (!isFolderItem || (isRootFolder && !draggedFolderHasNestedFolder));
     }
 
     public void onDragEnter(DragObject d) {
