@@ -10,6 +10,8 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.graphics.Color
@@ -53,6 +55,9 @@ class MiMaxIslandService : NotificationListenerService() {
     private var clockStatusText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
     private var timerStatusText = ""
     private var weatherStatusText = ""
+    private var callStatusText = ""
+    private var telephonyManager: TelephonyManager? = null
+    private var phoneStateListener: PhoneStateListener? = null
     private val notificationTicker = object : Runnable {
         override fun run() {
             updateActivityMessages()
@@ -171,6 +176,7 @@ class MiMaxIslandService : NotificationListenerService() {
             batteryReceiverRegistered = true
         }
         timerTicker.run()
+        registerCallStateMonitor()
     }
 
     override fun onListenerConnected() {
@@ -180,6 +186,7 @@ class MiMaxIslandService : NotificationListenerService() {
         activeNotifications?.forEach { activeEvents[it.key] = it }
         activeEvents.values.lastOrNull()?.let { show(it) }
         timerTicker.run()
+        registerCallStateMonitor()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -380,9 +387,48 @@ class MiMaxIslandService : NotificationListenerService() {
             category == Notification.CATEGORY_REMINDER
     }
 
+    @Suppress("DEPRECATION")
+    private fun registerCallStateMonitor() {
+        if (checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        val manager = getSystemService(TELEPHONY_SERVICE) as? TelephonyManager ?: return
+        if (phoneStateListener != null) return
+        telephonyManager = manager
+        val listener = object : PhoneStateListener() {
+            override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                callStatusText = when (state) {
+                    TelephonyManager.CALL_STATE_RINGING -> "Incoming call"
+                    TelephonyManager.CALL_STATE_OFFHOOK -> "Call in progress"
+                    else -> ""
+                }
+                if (callStatusText.isNotBlank() &&
+                    MiMaxIslandPreferences.enabled(this@MiMaxIslandService) &&
+                    Settings.canDrawOverlays(this@MiMaxIslandService) &&
+                    !getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
+                        .getBoolean("focus_mode_enabled", false)) {
+                    if (activeKey == null) showStandaloneActivity(callStatusText)
+                } else if (state == TelephonyManager.CALL_STATE_IDLE && activeKey == null) {
+                    removeIsland()
+                }
+                updateActivityMessages()
+            }
+        }
+        phoneStateListener = listener
+        manager.listen(listener, PhoneStateListener.LISTEN_CALL_STATE)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun unregisterCallStateMonitor() {
+        val listener = phoneStateListener ?: return
+        runCatching { telephonyManager?.listen(listener, PhoneStateListener.LISTEN_NONE) }
+        phoneStateListener = null
+        telephonyManager = null
+        callStatusText = ""
+    }
+
     private fun displayMessage(): String {
         val systemChronometer = activeEvents[activeKey]?.let(::systemChronometerText).orEmpty()
-        return listOf(lastMessage, systemChronometer, batteryStatusText, clockStatusText, timerStatusText, weatherStatusText)
+        return listOf(lastMessage, systemChronometer, callStatusText, batteryStatusText, clockStatusText, timerStatusText, weatherStatusText)
             .filter { it.isNotBlank() }.joinToString("  •  ")
     }
 
@@ -1162,6 +1208,7 @@ class MiMaxIslandService : NotificationListenerService() {
 
     override fun onDestroy() {
         if (batteryReceiverRegistered) runCatching { unregisterReceiver(batteryReceiver) }
+        unregisterCallStateMonitor()
         batteryReceiverRegistered = false
         main.removeCallbacks(timerTicker)
         main.removeCallbacks(notificationTicker)
