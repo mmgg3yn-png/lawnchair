@@ -34,6 +34,7 @@ class MiMaxControlActivity : Activity() {
     private val requestExportBackup = 7104
     private val requestImportExtension = 7105
     private val requestExportExtension = 7106
+    private var pendingExtensionExport: MiMaxExtensionCodec.Definition? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -257,13 +258,11 @@ class MiMaxControlActivity : Activity() {
             )
         }
         addButton("تصدير الثيم الحالي كإضافة MXE") {
-            startActivityForResult(
-                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "application/json"
-                    putExtra(Intent.EXTRA_TITLE, "MiMax-Theme-Extension.mxe")
-                }, requestExportExtension
-            )
+            pendingExtensionExport = MiMaxExtensionManager.createCurrentThemeExtension(this)
+            launchExtensionExport(pendingExtensionExport!!)
+        }
+        addButton("أدوات المطور: إنشاء حزمة MXE مخصصة") {
+            showExtensionDeveloperTool()
         }
         addButton("استعادة آخر ثيم معروف السلامة") {
             val restored = MiMaxExtensionManager.restoreLastKnownGood(this)
@@ -737,7 +736,10 @@ class MiMaxControlActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode != RESULT_OK) return
+        if (resultCode != RESULT_OK) {
+            if (requestCode == requestExportExtension) pendingExtensionExport = null
+            return
+        }
         val uri = data?.data ?: return
         when (requestCode) {
             requestImportMt1 -> importMt1(uri)
@@ -782,10 +784,89 @@ class MiMaxControlActivity : Activity() {
         }
     }
 
+    private fun showExtensionDeveloperTool() {
+        val draft = MiMaxExtensionManager.createCurrentThemeExtension(this)
+        val nameField = EditText(this).apply {
+            hint = "اسم الإضافة"
+            setSingleLine(true)
+            setText(draft.name)
+        }
+        val idField = EditText(this).apply {
+            hint = "معرّف فريد مثل com.example.theme"
+            setSingleLine(true)
+            setText(draft.id)
+        }
+        val versionField = EditText(this).apply {
+            hint = "رقم الإصدار"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true)
+            setText("1")
+        }
+        val descriptionField = EditText(this).apply {
+            hint = "وصف الإضافة (اختياري)"
+            setSingleLine(true)
+            setText(draft.description)
+        }
+        val editor = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            listOf(nameField, idField, versionField, descriptionField).forEach { field ->
+                addView(field, LinearLayout.LayoutParams(-1, dp(52)).apply {
+                    topMargin = dp(6)
+                })
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("منشئ إضافات MXE")
+            .setMessage("سينشأ ملف ثيم بياناتي بصلاحية theme.apply فقط. لا يدعم هذا الإصدار تشغيل كود أو سكربتات خارجية.")
+            .setView(editor)
+            .setPositiveButton("التحقق والتصدير") { _, _ ->
+                runCatching {
+                    val id = idField.text.toString().trim()
+                    val name = nameField.text.toString().trim()
+                    val version = versionField.text.toString().toLongOrNull()
+                        ?: error("رقم الإصدار غير صالح")
+                    val description = descriptionField.text.toString().trim().take(240)
+                    val definition = draft.copy(
+                        id = id,
+                        name = name,
+                        versionCode = version,
+                        description = description,
+                    )
+                    // Encoding is also the developer-side schema validator.
+                    MiMaxExtensionCodec.encode(definition)
+                    pendingExtensionExport = definition
+                    launchExtensionExport(definition)
+                }.onFailure {
+                    Toast.makeText(
+                        this,
+                        "بيانات الإضافة غير صالحة: ${it.message ?: "تحقق من الحقول"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNegativeButton("إلغاء", null)
+            .show()
+    }
+
+    private fun launchExtensionExport(definition: MiMaxExtensionCodec.Definition) {
+        val safeName = definition.id.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        startActivityForResult(
+            Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "$safeName.mxe")
+            },
+            requestExportExtension
+        )
+    }
+
     private fun exportExtension(uri: Uri) {
         runCatching {
-            val definition = MiMaxExtensionManager.createCurrentThemeExtension(this)
+            val definition = pendingExtensionExport
+                ?: MiMaxExtensionManager.createCurrentThemeExtension(this)
             val bytes = MiMaxExtensionCodec.encode(definition)
+            pendingExtensionExport = null
             contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
                 ?: error("تعذر إنشاء ملف الإضافة")
             Toast.makeText(this, "تم تصدير إضافة الثيم: ${definition.name}", Toast.LENGTH_LONG).show()
