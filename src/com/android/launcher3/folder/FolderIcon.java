@@ -262,6 +262,22 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         icon.mActivity = activity;
         icon.mDotRenderer = grid.mDotRendererWorkSpace;
 
+        // A Mi_Max stack is represented by its first folder icon. The remaining
+        // folders stay in Launcher data and can still be opened from the stack
+        // selector, but are not shown as duplicate workspace icons.
+        try {
+            MiMaxFolderStackStore.Stack stack = new MiMaxFolderStackStore(activity)
+                    .getAll().stream()
+                    .filter(candidate -> candidate.getChildFolderIds().contains(folderInfo.id))
+                    .findFirst().orElse(null);
+            if (stack != null && stack.getChildFolderIds().size() > 1
+                    && stack.getChildFolderIds().get(0) != folderInfo.id) {
+                icon.setVisibility(View.GONE);
+            }
+        } catch (RuntimeException ignored) {
+            // A persistence read failure must never prevent normal folder binding.
+        }
+
         icon.setContentDescription(icon.getAccessiblityTitle(folderInfo.title));
         icon.updateDotInfo();
 
