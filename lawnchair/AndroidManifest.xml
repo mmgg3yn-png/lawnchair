@@ -1,4 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?><!--
+<?xml vers
+        <activity
+            android:name="app.lawnchair.mimax.MiMaxAppLibraryActivity"
+            android:exported="false"
+            android:label="Mi_Max App Library"
+            android:theme="@style/Theme.Lawnchair" />ion="1.0" encoding="utf-8"?><!--
 /*
 **
 ** Copyright (c) 2021, Lawnchair
