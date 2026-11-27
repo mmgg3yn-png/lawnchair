@@ -1150,7 +1150,14 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     public boolean acceptDrop(DragObject d) {
         // LC: App drawer folders are not backed by the launcher model, so dropping
         // into them would write through ModelWriter and crash (#7127).
-        return !isInAppDrawer() && willAcceptItemType(d.dragInfo.itemType);
+        boolean isFolderItem = d.dragInfo instanceof FolderInfo;
+        boolean isRootFolder = mInfo.container == com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
+                || mInfo.container == com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
+        // Folder stacks are intentionally one level deep: a home-screen folder may contain
+        // other folders, but a folder already inside a stack cannot contain another folder.
+        return !isInAppDrawer()
+                && willAcceptItemType(d.dragInfo.itemType)
+                && (!isFolderItem || isRootFolder);
     }
 
     public void onDragEnter(DragObject d) {
