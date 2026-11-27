@@ -519,7 +519,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 findViewWithTag<TextView>("message")?.visibility =
                     if (expanded && findViewWithTag<TextView>("message")?.text?.isNotBlank() == true) View.VISIBLE else View.GONE
                 findViewWithTag<LinearLayout>("media_controls")?.visibility =
-                    if (expanded && mediaController != null) View.VISIBLE else View.GONE
+                    if (expanded && isCurrentMediaActivity(sbn)) View.VISIBLE else View.GONE
                 findViewWithTag<LinearLayout>("notification_actions")?.visibility =
                     if (expanded && (findViewWithTag<LinearLayout>("notification_actions")?.childCount ?: 0) > 0) View.VISIBLE else View.GONE
                 findViewWithTag<TextView>("float_panel_button")?.visibility =
