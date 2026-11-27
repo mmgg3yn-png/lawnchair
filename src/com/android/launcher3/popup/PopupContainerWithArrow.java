@@ -268,7 +268,7 @@ public class PopupContainerWithArrow<T extends Context & ActivityContext>
         }
 
         // Get system shortcuts for the widget
-        List<SystemShortcut> systemShortcuts = launcher.getSupportedShortcuts()
+        List<SystemShortcut> systemShortcuts = launcher.getSupportedShortcuts(item.container)
                 .map(s -> s.getShortcut(launcher, item, widgetView))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -312,7 +312,7 @@ public class PopupContainerWithArrow<T extends Context & ActivityContext>
         }
 
         // Get system shortcuts for the widget stack
-        List<SystemShortcut> systemShortcuts = launcher.getSupportedShortcuts()
+        List<SystemShortcut> systemShortcuts = launcher.getSupportedShortcuts(widgetInfo.container)
                 .map(s -> s.getShortcut(launcher, widgetInfo, stackView))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -329,6 +329,19 @@ public class PopupContainerWithArrow<T extends Context & ActivityContext>
         container.populateAndShowRowsForWidget(stackView, systemShortcuts);
         container.requestFocus();
         return container;
+    }
+
+    /** Populates a widget-anchored popup without loading app deep shortcuts. */
+    public void populateAndShowRowsForWidget(View originalView,
+            List<SystemShortcut> systemShortcuts) {
+        mOriginalView = originalView;
+        mContainerWidth = getResources().getDimensionPixelSize(R.dimen.bg_popup_item_width);
+        if (!systemShortcuts.isEmpty()) {
+            addSystemShortcuts(systemShortcuts,
+                    R.layout.system_shortcut_rows_container,
+                    R.layout.system_shortcut);
+        }
+        show();
     }
 
     private void configureForLauncher(Launcher launcher, ItemInfo itemInfo) {
