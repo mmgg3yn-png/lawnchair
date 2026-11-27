@@ -253,6 +253,9 @@ class MiMaxControlActivity : Activity() {
             setTextColor(0xFFFFFFFF.toInt())
             setPadding(0, dp(24), 0, dp(8))
         })
+        addButton("مكتبة التطبيقات الذكية") {
+            startActivity(Intent(this, MiMaxAppLibraryActivity::class.java))
+        }
         addButton("إدارة الإضافات المثبتة") { showExtensionManager() }
         addButton("فتح كتالوج القوالب المدمج") { showExtensionCatalog() }
         addButton("فتح متجر الثيمات عبر الإنترنت") { showOnlineExtensionStore() }
