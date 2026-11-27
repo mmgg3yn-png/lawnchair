@@ -464,7 +464,9 @@ class MiMaxIslandService : NotificationListenerService() {
                             if (lp != null) {
                                 lp.x = startX + (event.rawX - downX).toInt()
                                 lp.y = startY + (event.rawY - downY).toInt()
-                                runCatching { wm?.updateViewLayout(floatingPanel, lp) }
+                                floatingPanel?.let { panel ->
+                                    runCatching { wm?.updateViewLayout(panel, lp) }
+                                }
                             }
                             true
                         }
