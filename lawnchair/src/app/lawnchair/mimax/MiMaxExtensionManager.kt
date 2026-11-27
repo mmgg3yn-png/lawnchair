@@ -111,6 +111,7 @@ object MiMaxExtensionManager {
             "هذه الإضافة تتطلب إصداراً أحدث من Mi_Max Launcher"
         }
         val installed = getAll(context)
+        ensureAcyclicDependencies(installed, definition)
         val previous = installed.firstOrNull { it.definition.id == definition.id }
         if (previous != null) {
             require(definition.versionCode > previous.definition.versionCode) {
@@ -257,9 +258,19 @@ object MiMaxExtensionManager {
             context.sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
             clearError(context, id)
         } catch (failure: Throwable) {
-            runCatching { restoreTheme(context, previous) }
-            runCatching { setEnabled(context, id, false) }
-            recordError(context, id, failure.message ?: "فشل تطبيق الثيم")
+            val rollback = runCatching { restoreTheme(context, previous) }
+            disableExtensionAndDependents(
+                context,
+                id,
+                failure.message ?: "فشل تطبيق الثيم"
+            )
+            if (rollback.isFailure) {
+                recordError(
+                    context,
+                    id,
+                    "فشل تطبيق الثيم وتعذر التراجع: ${rollback.exceptionOrNull()?.message ?: "unknown"}"
+                )
+            }
             recovery.edit().remove(KEY_PENDING).remove(KEY_PENDING_SNAPSHOT).apply()
             context.sendBroadcast(Intent(MiMaxIslandPreferences.ACTION_THEME_UPDATED))
             throw failure
@@ -328,6 +339,68 @@ object MiMaxExtensionManager {
             widthDp = snapshot.optInt("width", 320).coerceIn(180, 360)
         )
         writeTheme(context.getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE), theme)
+    }
+
+    private fun ensureAcyclicDependencies(
+        installed: List<InstalledExtension>,
+        candidate: MiMaxExtensionCodec.Definition
+    ) {
+        val graph = installed
+            .filterNot { it.definition.id == candidate.id }
+            .associate { it.definition.id to it.definition.dependencies }
+            .toMutableMap()
+        graph[candidate.id] = candidate.dependencies
+
+        val visiting = mutableSetOf<String>()
+        val visited = mutableSetOf<String>()
+        fun visit(id: String): Boolean {
+            if (id in visiting) return false
+            if (id in visited) return true
+            visiting.add(id)
+            for (dependency in graph[id].orEmpty()) {
+                if (dependency in graph && !visit(dependency)) return false
+            }
+            visiting.remove(id)
+            visited.add(id)
+            return true
+        }
+        require(graph.keys.all(::visit)) {
+            "تم اكتشاف حلقة في اعتماديات الإضافات"
+        }
+    }
+
+    /** Disable the failed theme extension and every enabled extension that depends on it. */
+    private fun disableExtensionAndDependents(
+        context: Context,
+        failedId: String,
+        message: String
+    ) {
+        val installed = getAll(context)
+        val disabledIds = mutableSetOf(failedId)
+        var changed: Boolean
+        do {
+            changed = false
+            installed.forEach { extension ->
+                if (extension.enabled &&
+                    extension.definition.dependencies.any { it in disabledIds }
+                ) {
+                    if (disabledIds.add(extension.definition.id)) changed = true
+                }
+            }
+        } while (changed)
+
+        save(context, installed.map { extension ->
+            when {
+                extension.definition.id == failedId ->
+                    extension.copy(enabled = false, lastError = message.take(240))
+                extension.definition.id in disabledIds ->
+                    extension.copy(
+                        enabled = false,
+                        lastError = "تم إيقاف الإضافة بسبب اعتماد مفقود: $failedId"
+                    )
+                else -> extension
+            }
+        })
     }
 
     private fun recordError(context: Context, id: String, message: String) {
