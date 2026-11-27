@@ -6,6 +6,9 @@ package app.lawnchair.mimax
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
+import java.io.ByteArrayOutputStream
+import android.content.Intent
 import android.content.ComponentName
 import android.net.Uri
 import android.os.Bundle
@@ -20,6 +23,8 @@ import android.widget.Toast
 /** Native settings entry for Me Island and its Android permission prerequisites. */
 class MiMaxControlActivity : Activity() {
     private lateinit var root: LinearLayout
+    private val requestImportMt1 = 7101
+    private val requestExportMt1 = 7102
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,6 +88,23 @@ class MiMaxControlActivity : Activity() {
         addButton("تصميم HyperOS — HIS") { choose(IslandStyle.HIS) }
         addButton("تصميم iPhone — LTIN") { choose(IslandStyle.LTIN) }
         addButton("تصميم ColorOS") { choose(IslandStyle.COLOROS) }
+        addButton("استيراد ثيم MT1") {
+            startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/octet-stream"
+                }, requestImportMt1
+            )
+        }
+        addButton("تصدير ثيم MT1") {
+            startActivityForResult(
+                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/octet-stream"
+                    putExtra(Intent.EXTRA_TITLE, "MiMax-Theme.mt1")
+                }, requestExportMt1
+            )
+        }
         root.addView(TextView(this).apply {
             text = "حالة إذن العرض: " + if (Settings.canDrawOverlays(this@MiMaxControlActivity)) "ممنوح" else "غير ممنوح"
             setTextColor(0xFFB9D7FF.toInt())
@@ -120,6 +142,68 @@ class MiMaxControlActivity : Activity() {
     private fun choose(style: IslandStyle) {
         MiMaxIslandPreferences.setStyle(this, style)
         Toast.makeText(this, "تم اختيار تصميم " + style.name, Toast.LENGTH_SHORT).show()
+    }
+
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        when (requestCode) {
+            requestImportMt1 -> importMt1(uri)
+            requestExportMt1 -> exportMt1(uri)
+        }
+    }
+
+    private fun importMt1(uri: Uri) {
+        runCatching {
+            val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= 1024 * 1024 + 46) { "ملف MT1 كبير جداً" }
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            } ?: error("تعذر قراءة الملف")
+            val theme = MiMaxMt1Codec.decode(bytes)
+            getSharedPreferences("mimax_launcher", MODE_PRIVATE).edit()
+                .putString("island_style", theme.style.name)
+                .putInt("mt1_accent_color", theme.accentColor)
+                .putInt("mt1_background_color", theme.backgroundColor)
+                .putInt("mt1_corner_radius", theme.cornerRadiusDp)
+                .putInt("mt1_width", theme.widthDp)
+                .putString("mt1_theme_name", theme.name)
+                .apply()
+            Toast.makeText(this, "تم استيراد الثيم: " + theme.name, Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(this, "فشل استيراد MT1: " + (it.message ?: "ملف غير صالح"), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun exportMt1(uri: Uri) {
+        runCatching {
+            val prefs = getSharedPreferences("mimax_launcher", MODE_PRIVATE)
+            val bytes = MiMaxMt1Codec.encode(
+                MiMaxMt1Codec.Theme(
+                    prefs.getString("mt1_theme_name", "Mi_Max Theme") ?: "Mi_Max Theme",
+                    MiMaxIslandPreferences.style(this),
+                    prefs.getInt("mt1_accent_color", 0xFF8C9BFF.toInt()),
+                    prefs.getInt("mt1_background_color", 0xF0181D2B.toInt()),
+                    prefs.getInt("mt1_corner_radius", 22),
+                    prefs.getInt("mt1_width", 320)
+                )
+            )
+            contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                ?: error("تعذر إنشاء الملف")
+            Toast.makeText(this, "تم تصدير ملف MT1", Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(this, "فشل تصدير MT1: " + (it.message ?: "خطأ غير معروف"), Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
