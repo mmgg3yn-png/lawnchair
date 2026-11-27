@@ -100,6 +100,7 @@ class MiMaxIslandService : NotificationListenerService() {
                     val latest = activeEvents.values.lastOrNull()
                     if (latest != null) show(latest)
                     else if (timerStatusText.isNotBlank()) showStandaloneTimer()
+                    else if (batteryStatusText.startsWith("Charging")) showStandaloneActivity("Charging")
                 }
                 return
             }
@@ -109,6 +110,7 @@ class MiMaxIslandService : NotificationListenerService() {
                 removeIsland()
                 if (active != null) show(active)
                 else if (timerStatusText.isNotBlank()) showStandaloneTimer()
+                else if (batteryStatusText.startsWith("Charging")) showStandaloneActivity("Charging")
                 floatingPanel?.background = islandBackground()
                 return
             }
@@ -122,17 +124,23 @@ class MiMaxIslandService : NotificationListenerService() {
             val scale = intent.getIntExtra("scale", 100).coerceAtLeast(1)
             val percent = if (level >= 0) (level * 100 / scale) else -1
             val plugged = intent.getIntExtra("plugged", 0) != 0
+            val wasCharging = batteryStatusText.startsWith("Charging")
             val status = if (plugged) "Charging" else "Battery"
             batteryStatusText = if (percent >= 0) "$status • $percent%" else status
-            island?.findViewWithTag<TextView>("message")?.let { view ->
-                view.text = displayMessage()
-                view.visibility = if (expanded) View.VISIBLE else View.GONE
+            if (plugged && !wasCharging && island == null && activeKey == null && timerStatusText.isBlank()) {
+                showStandaloneActivity("Charging")
+                main.removeCallbacks(dismiss)
+                main.postDelayed(dismiss, 5000L)
+            } else if (!plugged && wasCharging && activeKey == null && timerStatusText.isBlank()) {
+                removeIsland()
             }
+            updateActivityMessages()
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        wm = getSystemService(WINDOW_SERVICE) as WindowManager
         runCatching {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_BATTERY_CHANGED)
@@ -755,6 +763,8 @@ class MiMaxIslandService : NotificationListenerService() {
             category == Notification.CATEGORY_NAVIGATION -> "➤"
             isCurrentMediaActivity(sbn) -> "♫"
             text.contains("record") || text.contains("تسجيل") -> "●"
+            sbn == null && batteryStatusText.startsWith("Charging") -> "⚡"
+            sbn == null && timerStatusText.isNotBlank() -> "◷"
             else -> "●"
         }
     }
@@ -766,6 +776,8 @@ class MiMaxIslandService : NotificationListenerService() {
         sbn != null && eventPrefix(sbn) == "TIMER" -> "LIVE TIMER"
         sbn != null && eventPrefix(sbn) == "NAVIGATION" -> "LIVE NAVIGATION"
         isCurrentMediaActivity(sbn) -> "NOW PLAYING"
+        sbn == null && batteryStatusText.startsWith("Charging") -> "CHARGING"
+        sbn == null && timerStatusText.isNotBlank() -> "LIVE TIMER"
         else -> "LIVE ACTIVITY"
     }
 
@@ -787,18 +799,23 @@ class MiMaxIslandService : NotificationListenerService() {
             sbn != null && eventPrefix(sbn) == "TIMER" -> "المؤقت يعمل"
             sbn != null && eventPrefix(sbn) == "NAVIGATION" -> "التنقل نشط"
             isCurrentMediaActivity(sbn) -> "تشغيل الوسائط"
+            sbn == null && batteryStatusText.startsWith("Charging") -> "الشحن جارٍ"
+            sbn == null && timerStatusText.isNotBlank() -> "المؤقت يعمل"
             else -> "نشاط مباشر"
         }
     }
 
-    private fun showStandaloneTimer() {
+    private fun showStandaloneTimer() = showStandaloneActivity("Timer")
+
+    private fun showStandaloneActivity(title: String) {
+        if (island != null) return
         if (!MiMaxIslandPreferences.enabled(this) || !Settings.canDrawOverlays(this)) return
         if (MiMaxCrashRecovery.isDisabled(this)) return
         val windowManager = wm ?: return
         if (getSharedPreferences("mimax_launcher", Context.MODE_PRIVATE)
                 .getBoolean("focus_mode_enabled", false)) return
         style = MiMaxIslandPreferences.style(this)
-        val view = makeView("Timer")
+        val view = makeView(title)
         island = view
         val params = WindowManager.LayoutParams(
             dp(when (style) {
