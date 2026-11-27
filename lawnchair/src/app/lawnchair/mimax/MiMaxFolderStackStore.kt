@@ -39,16 +39,18 @@ class MiMaxFolderStackStore(context: Context) {
         return runCatching {
             val array = JSONArray(raw)
             val claimedFolderIds = mutableSetOf<Long>()
+            val seenStackIds = mutableSetOf<Long>()
             buildList<Stack> {
                 for (i in 0 until array.length()) {
                     val item = array.optJSONObject(i) ?: continue
                     val stackId = item.optLong("id", INVALID_ID)
-                    if (stackId <= 0L || any { it.id == stackId }) continue
+                    if (stackId <= 0L || !seenStackIds.add(stackId)) continue
                     val children = item.optJSONArray("children") ?: JSONArray()
-                    val candidates = buildList {
-                        for (j in 0 until children.length()) {
-                            val folderId = children.optLong(j, INVALID_ID)
-                            if (folderId != INVALID_ID && folderId !in this) add(folderId)
+                    val candidates = mutableListOf<Long>()
+                    for (j in 0 until children.length()) {
+                        val folderId = children.optLong(j, INVALID_ID)
+                        if (folderId != INVALID_ID && folderId !in candidates) {
+                            candidates.add(folderId)
                         }
                     }
                     val ids = candidates.filter { claimedFolderIds.add(it) }
