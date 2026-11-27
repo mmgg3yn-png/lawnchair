@@ -4,10 +4,14 @@
  */
 package app.lawnchair.mimax
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -36,12 +40,12 @@ class MiMaxIslandService : NotificationListenerService() {
         super.onListenerConnected()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         activeEvents.clear()
-        activeNotifications?.filter { it.packageName != packageName }?.forEach { activeEvents[it.key] = it }
+        activeNotifications?.forEach { activeEvents[it.key] = it }
         activeEvents.values.lastOrNull()?.let { show(it) }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName != packageName) main.post {
+        main.post {
             activeEvents[sbn.key] = sbn
             show(sbn)
         }
@@ -185,6 +189,11 @@ class MiMaxIslandService : NotificationListenerService() {
         expanded = false
     }
 
+    override fun onListenerDisconnected() {
+        removeIsland()
+        super.onListenerDisconnected()
+    }
+
     override fun onDestroy() {
         removeIsland()
         super.onDestroy()
@@ -201,6 +210,26 @@ enum class IslandStyle { HIS, LTIN, COLOROS }
 
 object MiMaxIslandPreferences {
     private const val PREFS = "mimax_launcher"
+    private const val TEST_CHANNEL = "mimax_island_test"
+    private const val TEST_NOTIFICATION_ID = 91427
+
+    /** Posts a real Android notification so the user can verify listener + overlay integration. */
+    fun postTestNotification(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(TEST_CHANNEL, "Me Island test", NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val notification = Notification.Builder(context, TEST_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Mi_Max Launcher")
+            .setContentText("Me Island is receiving notifications")
+            .setCategory(Notification.CATEGORY_EVENT)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(TEST_NOTIFICATION_ID, notification)
+    }
     fun enabled(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("island_enabled", true)
     fun setEnabled(context: Context, value: Boolean) {
